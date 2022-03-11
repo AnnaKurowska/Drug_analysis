@@ -23,7 +23,7 @@ library(ggpubr)
 
 ```
 
-#2.Functions
+#2.Functions---FIX IT! think about it bc it's getting complicated!
 ```{r}
 
 DE_Genevestigator <- function(data, AMP_data, PRO_data, AMP = 2, PRO = 10){
@@ -33,26 +33,40 @@ DE_Genevestigator <- function(data, AMP_data, PRO_data, AMP = 2, PRO = 10){
   for (i in 1:nrow(data)) {
     if ((max(data[i,AMP_data]) >= AMP) & (max(data[i,PRO_data]) < PRO)) {
       
-      compounds_to_be_stored[i] <- data[i,1]
+      compounds_to_be_stored[i] <- data[i,2]
       
     }
   }
   compounds_to_be_stored <- compounds_to_be_stored[!is.na(compounds_to_be_stored)]
   compounds_to_be_stored <- compounds_to_be_stored[!duplicated(compounds_to_be_stored)]
   
-  return(data[data$Compounds %in% compounds_to_be_stored,])
+  return(data[data$Original %in% compounds_to_be_stored,])
 }
 ```
 
 ```{r}
 finding_selected_compounds <-function(results_data){
   selected_words <- c()
-  for (i in 1:length(results_data$Compounds)){
-    selected_words[i] <- str_extract(results_data$Compounds[i], "([^\\s]+)") } # extract the first word = compound
+  for (i in 1:length(results_data$Original)){
+    selected_words[i] <- str_extract(results_data$Original[i], "([^\\s]+)") } # extract the first word = compound
     return(unique(selected_words))
 }
 
 ```
+
+````{r}
+calculating_ratios <- function(results_data, AMP, PRO){
+  ratio_values <- c() 
+  
+for (i in 1:nrow(results_data)){
+  ratio_values[i] <- exp(sum(results_data[i,AMP],na.rm = TRUE)/length(AMP))/exp(sum(results_data[i,PRO],na.rm = TRUE)/length(PRO))
+ }
+  return(ratio_values)
+}
+
+```
+
+
 
 #3. Loading and processing datasets
 Here the goal is to make each platform useful for the downstream analysis.
@@ -197,7 +211,7 @@ str(LINC_L1000_modified)
 dim(LINC_L1000_modified)
 
 LINC_modified_perturbations <-LINC_L1000_modified$Perturbations
-length(LINC_L1000_modified) 
+length(LINC_modified_perturbations) 
 
 LINC_time <- c()
 LINC_conc <- c()
@@ -206,23 +220,26 @@ LINC_compound <- c()
 
 for (i in 1:length(LINC_modified_perturbations)){
   
-  linc_perturbations_results <- str_match(as.list(LINC_perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*")
+  linc_perturbations_results <- str_match(as.list(LINC_modified_perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*")
   LINC_time[i] <- linc_perturbations_results[2]
   LINC_conc[i] <- linc_perturbations_results[3]
   LINC_cell[i] <- linc_perturbations_results[4]
   
-  LINC_compound[i] <-str_extract(results_LINC$Perturbations[i], "([^\\s]+)") 
+  LINC_compound[i] <-str_extract(LINC_modified_perturbations[i], "([^\\s]+)") 
   
 
 }
 
+LINC_compound
+
 #before you add  new columns, extract only FC columns
 LINC_L1000_modified <-LINC_L1000_modified[, grepl("FC.", names(LINC_L1000_modified))]
 
-LINC_L1000_modified <-cbind(as.data.frame(LINC_compound),as.data.frame(LINC_time),as.data.frame(LINC_conc),as.data.frame(LINC_cell),as.data.frame(LINC_modified_perturbations),LINC_L1000_modified)
+LINC_L1000_modified <-cbind(as.data.frame(LINC_compound),as.data.frame(LINC_modified_perturbations),as.data.frame(LINC_time),as.data.frame(LINC_conc),as.data.frame(LINC_cell),LINC_L1000_modified)
 
-colnames(LINC_L1000_modified) <- c("Compounds", "Time","Concentration", "Cell", "Original","BM2", "DEFB1","DEFB4A", "CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF")
+colnames(LINC_L1000_modified) <- c("Compounds", "Original","Time","Concentration", "Cell","BM2", "DEFB1","DEFB4A", "CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF")
 ```
+
 
 #4. Filtering datasets
 -AMP >= 2, PRO <=10
@@ -260,13 +277,16 @@ results_U219_4 <- DE_Genevestigator(U219_4_modified,AMP_data = AMP_U219_4,PRO_da
 DE_Genevestigator(U219_4_modified,AMP_data = AMP_U219_4,PRO_data = PRO_U219_4,AMP = 0, PRO = 0) # but works
 
 ```
+
+LINC-1000
 ```{r}
 #genes
 AMP_LINC_L1000 <- c("DEFB1","DEFB4A","CAMP","REG3A","PLA2G2A")
 PRO_LINC_L1000 <- c("IL1B","IL8","TNF")
 
-results_LINC <-DE_Genevestigator(LINC_L1000_modified,AMP_data = AMP_LINC_L1000,PRO_data = PRO_LINC_L1000)
+results_LINC <-DE_Genevestigator(LINC_L1000_modified,AMP_data = AMP_LINC_L1000,PRO_data = PRO_LINC_L1000,AMP = 2, PRO = 10)
 nrow(results_LINC)
+
 ```
 
 #5. Selecting compound names that match conditions
@@ -372,7 +392,8 @@ ggplot(joined_tables_for_visualisation, aes(x = Gene, y = Compounds, fill = Expr
   geom_tile() +
   theme_classic() +
   scale_fill_viridis() +
-  theme(axis.text.y=element_blank()) 
+  theme(axis.text.y=element_blank()) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
  #important to mention that Ratio = AMP/PRO and Expression_Ratio = DE
 
 ```
@@ -387,7 +408,7 @@ PRO_LINC_L1000
 
 LINC_100_ratio_values <- c() 
 for (i in 1:nrow(results_LINC)){
-  LINC_100_ratio_values[i] <- (sum(results_LINC[i,AMP_LINC_L1000],na.rm = TRUE)/length(AMP_LINC_L1000))/(sum(results_LINC[i,PRO_LINC_L1000],na.rm = TRUE)/length(PRO_LINC_L1000))
+  LINC_100_ratio_values[i] <- (exp(sum(results_LINC[i,AMP_LINC_L1000],na.rm = TRUE)/length(AMP_LINC_L1000)))/(exp((sum(results_LINC[i,PRO_LINC_L1000],na.rm = TRUE)/length(PRO_LINC_L1000)))
 }
 
 results_LINC$Ratios <- LINC_100_ratio_values
@@ -463,8 +484,10 @@ pheatmap(higher_ratios_hierarchical, clustering_method = "ward.D2", show_colname
 sorted_ratios_all_compounds <-all_platforms_highest_ratios %>%
   arrange(desc(Ratios))
 dim(sorted_ratios_all_compounds) #312 compounds (compounds from the 3 platforms, without filtering for DE >1 )
+table_ratios_save <- sorted_ratios_all_compounds[1:20,c("Original", "Ratios")]
+colnames(table_ratios_save) <- c("Condition", "Ratio (AMP/PRO)")
 
-head(sorted_ratios_all_compounds,30)
+#write_csv(table_ratios_save, file = "/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Codes/table_ratios_all_genes.csv")
 
 ```
 
@@ -539,43 +562,10 @@ LINC_LL37$Compounds
 
 Starting with LINC-1000 as it has such a huge number of compounds. What I do here, I should do it at the beginning for each platform.
 
-
-```{r}
-dim(LINC_L1000)
-
-
-LINC_full_table_time <- c()
-LINC_full_table_conc <- c()
-LINC_full_table_cell <- c()
-LINC_full_table_compound <- c()
-
-for (i in 1:length(LINC_L1000$Perturbations)){
-  
-  linc_perturbations_results <- str_match(as.list(LINC_L1000$Perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*")
-  LINC_full_table_time[i] <- linc_perturbations_results[2]
-  LINC_full_table_conc[i] <- linc_perturbations_results[3]
-  LINC_full_table_cell[i] <- linc_perturbations_results[4]
-  
-  LINC_full_table_compound[i] <-str_extract(LINC_L1000$Perturbations[i], "([^\\s]+)") 
-  
-  
-}
-
-LINC_L1000_FC <- LINC_L1000[, grepl("FC.",names(LINC_L1000))]
-LINC_L1000_FC <-data.frame(lapply(LINC_L1000_FC,as.numeric))
-str(LINC_L1000_FC)
-
-LINC_L1000_FC$Compound <- LINC_full_table_compound
-LINC_L1000_FC$Time <-LINC_full_table_time
-LINC_L1000_FC$Concentration <- LINC_full_table_conc
-LINC_L1000_FC$Cell <-LINC_full_table_cell
-
-```
-
 Working with Ibrutinib data only
 ```{r}
-ibrutinib <- LINC_L1000_FC %>%
-  filter(Compound == "ibrutinib")
+ibrutinib <- results_LINC %>%
+  filter(Compounds == "ibrutinib")
 
 unique(ibrutinib$Concentration) #"0.04uM" "0.12uM" "0.37uM" "1.11uM" "3.33uM" "10uM" 
 unique(ibrutinib$Cell)
@@ -584,9 +574,9 @@ head(ibrutinib)
 
 Preparing Ibrutinib data for visualisation
 ```{r}
-ibrutinib_gathered <- gather(data = ibrutinib,key = "Gene", value = "Expression_Ratio", -c(Compound, Time, Concentration,Cell))
+ibrutinib_gathered <- gather(data = ibrutinib,key = "Gene", value = "Expression_Ratio", -c(Compounds, Time, Concentration,Cell, Original))
 
-ibrutinib_gathered$Gene <- factor(ibrutinib_gathered$Gene, levels = c("FC.BM2", "FC.DEFB1","FC.DEFB4A","FC.CAMP", "FC.REG3A", "FC.PLA2G2A", "FC.IL1B", "FC.CXCL8", "FC.TNF"))
+ibrutinib_gathered$Gene <- factor(ibrutinib_gathered$Gene, levels = c("BM2", "DEFB1","DEFB4A","CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF"))
 
 ibrutinib_gathered$Concentration <- factor(ibrutinib_gathered$Concentration, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM"))
 
@@ -596,16 +586,18 @@ There are plenty of conditions in LINC data: Time, concentration, cell type, com
 
 One cell type, but concentrations shown
 ```{r}
-A375 <-ggplot(ibrutinib_gathered[ibrutinib_gathered$Cell == "A375",],mapping = aes(x = Gene, y = Expression_Ratio, fill =Concentration)) +
+A375 <-ggplot(ibrutinib_gathered[ibrutinib_gathered$Cell == "A375",],mapping = aes(x = Gene, y = Expression_Ratio, fill = Concentration)) +
   geom_bar(stat = "identity",position = "dodge") +
   theme_classic() +
+  ylab("Expression Ratio") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 A375
 
 ```
 
 ```{r}
 ibrutinib_gathered %>%
-  filter(Gene == "FC.DEFB4A", Cell == "A375") %>%
+  filter(Gene == "DEFB4A", Cell == "A375") %>%
   ggplot(aes(x = Concentration, y = Expression_Ratio)) +
   geom_point() +
   geom_line(group = 1) +
@@ -614,9 +606,10 @@ ibrutinib_gathered %>%
   xlab("Concentration")
 
 ```
+
 ```{r}
 ibrutinib_gathered %>%
-  filter(Gene == "FC.TNF", Cell == "A375") %>%
+  filter(Gene == "TNF", Cell == "A375") %>%
   ggplot(aes(x = Concentration, y = Expression_Ratio)) +
   geom_point() +
   geom_line(group = 1) +
@@ -628,7 +621,7 @@ ibrutinib_gathered %>%
 ```
 All of cell types at once, not a good plot
 ```{r}
-ggplot(ibrutinib_gathered[ibrutinib_gathered$Gene == "FC.DEFB4A",],mapping = aes(x = Cell, y = Expression_Ratio, colour =Concentration)) +
+ggplot(ibrutinib_gathered[ibrutinib_gathered$Gene == "DEFB4A",],mapping = aes(x = Cell, y = Expression_Ratio, colour =Concentration)) +
  geom_point() +
   geom_line(aes(group = Concentration)) +
 theme_classic() +
@@ -637,7 +630,7 @@ theme_classic() +
 
 Same idea but better plot I think: shows differences between cell types
 ```{r}
-ggplot(ibrutinib_gathered[ibrutinib_gathered$Gene == "FC.DEFB4A",],mapping = aes(x = Cell, y = Expression_Ratio)) +
+ggplot(ibrutinib_gathered[ibrutinib_gathered$Gene == "DEFB4A",],mapping = aes(x = Cell, y = Expression_Ratio)) +
     geom_boxplot(outlier.colour = "white") +
   geom_point(aes(colour = Concentration)) +
   theme_classic() +
@@ -652,8 +645,8 @@ Okay now let's try to do some time plots. For that I need a different drug where
 
 -creating separate data
 ```{r}
-JNK_9L <- LINC_L1000_FC %>%
-  filter(Compound == "JNK-9L")
+JNK_9L <- LINC_L1000_modified %>%
+  filter(Compounds == "JNK-9L")
 
 unique(JNK_9L$Concentration) #"0.04uM" "0.12uM" "0.37uM" "1.11uM" "3.33uM" "10uM" 
 unique(JNK_9L$Cell) #[1] "BT20"     "HME1"     "HS578T"   "LNCAP"    "MCF7"     "MCF10A"  "MDAMB231" "SKBR3"    "A375"     "A549"     "HA1E"     "HCC515"  
@@ -665,9 +658,9 @@ head(JNK_9L)
 
 -Preparing JNK-9L data for visualisation
 ```{r}
-JNK_9L_gathered <- gather(data = JNK_9L,key = "Gene", value = "Expression_Ratio", -c(Compound, Time, Concentration,Cell))
+JNK_9L_gathered <- gather(data = JNK_9L,key = "Gene", value = "Expression_Ratio", -c(Compounds, Time, Concentration,Cell, Original))
 
-JNK_9L_gathered$Gene <- factor(JNK_9L_gathered$Gene, levels = c("FC.BM2", "FC.DEFB1","FC.DEFB4A","FC.CAMP", "FC.REG3A", "FC.PLA2G2A", "FC.IL1B", "FC.CXCL8", "FC.TNF"))
+JNK_9L_gathered$Gene <- factor(JNK_9L_gathered$Gene, levels = c("BM2", "DEFB1","DEFB4A","CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF"))
 
 JNK_9L_gathered$Concentration <- factor(JNK_9L_gathered$Concentration, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM"))
 
@@ -680,7 +673,7 @@ head(JNK_9L_gathered)
 ```{r}
 
 JNK_9L_gathered %>%
-  filter(Cell == "BT20", Gene == "FC.DEFB4A") %>%
+  filter(Cell == "BT20", Gene == "DEFB4A") %>%
 ggplot(aes(x = Time, y = Expression_Ratio)) +
   geom_boxplot() +
   geom_jitter(aes(colour = Concentration)) +
@@ -694,7 +687,7 @@ ggplot(aes(x = Time, y = Expression_Ratio)) +
 ```{r}
 
 JNK_9L_gathered %>%
-  filter(Cell == "BT20", Gene == "FC.TNF") %>%
+  filter(Cell == "BT20", Gene == "TNF") %>%
 ggplot(aes(x = Time, y = Expression_Ratio)) +
   geom_boxplot(outlier.colour = "white") +
   geom_jitter(aes(colour = Concentration)) +
@@ -703,3 +696,20 @@ ggplot(aes(x = Time, y = Expression_Ratio)) +
   
 
 ```
+
+
+Compare several compounds: One gene: several compounds: highest ratios
+```{r}
+sorted_ratios_all_compounds 
+dim(sorted_ratios_all_compounds) #312 compounds (compounds from the 3 platforms, without filtering for DE >1 )
+
+sorted_ratios_for_visualisation <-sorted_ratios_all_compounds[1:5,c(1,5)]
+
+ggplot(sorted_ratios_for_visualisation, aes(x = Compounds, y = DEFB4A, fill = Compounds)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  ylab("HBD2 Expression Ratio") +
+  xlab("Compound")
+
+```
+

@@ -1,0 +1,1008 @@
+---
+title: "Untitled"
+author: "Ania"
+date: "17/02/2022"
+output: html_document
+---
+
+Loading libraries
+```{r, echo= = FALSE}
+library(rlang)
+library(readxl)
+library(writexl)
+library(dplyr)
+library(stringr)
+library(tidyverse)
+library(ggplot2)
+library(hrbrthemes) # for heatmaps
+library(magrittr)
+library(pheatmap)
+library(MixGHD) # hierarchical clustering which i will finally not use
+library(viridis)
+library(ggpubr)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#1.Loading datasets
+
+U133A:
+```{r}
+U133A <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_AFFY_U133A.xlsx")
+
+U133A <-U133A[,-c(1,3,4,5)]
+colnames(U133A) <- c("Perturbations", "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1",  #DEFB1
+                       "FC:HBD2","p-value:HBD2",  # DEFB4A
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
+
+U133A <- U133A[4:nrow(U133A),]
+U133A_modified <-data.frame(lapply(U133A,as.numeric))
+U133A_modified$Perturbations <- U133A$Perturbations
+dim(U133A_modified)
+
+Pert_names_before_U133 <-U133A_modified$Perturbations #keep pertubrations column, keep names only!
+
+Pert_names_after_U133<-c()
+for (i in 1:length(Pert_names_before_U133)) {
+  Pert_names_after_U133[i] <- str_extract(Pert_names_before_U133[i], "([^\\s]+)") 
+}
+
+U133A_modified <-U133A_modified[ , grepl( "FC." , names(U133A_modified) ) ]
+
+U133A_modified <-cbind(as.data.frame(Pert_names_after_U133),as.data.frame(Pert_names_before_U133), U133A_modified)
+
+colnames(U133A_modified) <- c("Compounds", "Original","BM2", "HBD1","HBD2", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
+
+```
+```{r}
+
+#write_xlsx(U133A_modified,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/U133A_all_compounds.xlsx")
+```
+
+U133APLUS:
+
+```{r}
+U133A_PLUS <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_AFFY_U133PLUS_2.xlsx")
+
+U133A_PLUS <-U133A_PLUS[,-c(1,3,4,5)]
+colnames(U133A_PLUS) <- c("Perturbations", 
+                       "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1",  #DEFB1
+                       "FC:HBD2","p-value:HBD2",  # DEFB4A
+                       "FC:HBD3","p-value:HBD3",
+                       "FC:HBD4","p-value:HBD4",
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP2","p-value:PGLYRP2",
+                       "FC:PGLYRP3","p-value:PGLYRP3",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
+
+U133A_PLUS <- U133A_PLUS[4:nrow(U133A_PLUS),]
+U133APLUS_modified <-data.frame(lapply(U133A_PLUS,as.numeric))
+U133APLUS_modified$Perturbations <- U133A_PLUS$Perturbations
+dim(U133APLUS_modified)
+
+Pert_names_before_U133PLUS <-U133APLUS_modified$Perturbations #keep pertubrations column, keep names only!
+
+Pert_names_after_U133PLUS<-c()
+for (i in 1:length(Pert_names_before_U133PLUS)) {
+  Pert_names_after_U133PLUS[i] <- str_extract(Pert_names_before_U133PLUS[i], "([^\\s]+)") 
+}
+
+U133APLUS_modified <-U133APLUS_modified[, grepl("FC.",names(U133APLUS_modified)) ]
+
+U133APLUS_modified <-cbind(as.data.frame(Pert_names_after_U133PLUS),as.data.frame(Pert_names_before_U133PLUS), U133APLUS_modified)
+
+colnames(U133APLUS_modified) <- c("Compounds", "Original","BM2", "HBD1","HBD2","HBD3","HBD4", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
+
+```
+
+```{r}
+
+#write_xlsx(U133APLUS_modified,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/U133APLUS_all_compounds.xlsx")
+```
+
+
+U219:
+```{r}
+U219 <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_AFFY_U219.xlsx")
+
+U219 <-U219[,-c(1,3,4,5)]
+colnames(U219) <- c("Perturbations", 
+                       "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1",  #DEFB1
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP2","p-value:PGLYRP2",
+                       "FC:PGLYRP3","p-value:PGLYRP3",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
+
+U219 <- U219[4:nrow(U219),]
+U219_modified <-data.frame(lapply(U219,as.numeric))
+U219_modified$Perturbations <- U219$Perturbations
+dim(U219_modified)
+
+Pert_names_before_U219 <-U219_modified$Perturbations #keep pertubrations column, keep names only!
+
+Pert_names_after_U219<-c()
+for (i in 1:length(Pert_names_before_U219)) {
+  Pert_names_after_U219[i] <- str_extract(Pert_names_before_U219[i], "([^\\s]+)") 
+}
+
+U219_modified <-U219_modified[, grepl("FC.",names(U219_modified)) ]
+
+U219_modified <-cbind(as.data.frame(Pert_names_after_U219),as.data.frame(Pert_names_before_U219), U219_modified)
+
+colnames(U219_modified) <- c("Compounds", "Original","BM2", "HBD1", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
+```
+
+```{r}
+
+#write_xlsx(U219_modified,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/U219_all_compounds.xlsx")
+```
+
+
+LINC-L1000
+```{r}
+LINC <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_LINC_L1000.xlsx")
+
+LINC <-LINC[,-c(1,3,4,5)]
+colnames(LINC) <- c("Perturbations", 
+                       "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1", #DEFB1
+                       "FC:HBD2","p-value:HBD2", #DEFB4A
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
+
+LINC <- LINC[4:nrow(LINC),]
+LINC_modified <-data.frame(lapply(LINC,as.numeric))
+LINC_modified$Perturbations <- LINC$Perturbations
+dim(LINC_modified)
+
+Pert_names_before_LINC <-LINC_modified$Perturbations #keep pertubrations column, keep names only!
+
+Pert_names_after_LINC<-c()
+for (i in 1:length(Pert_names_before_LINC)) {
+  Pert_names_after_LINC[i] <- str_extract(Pert_names_before_LINC[i], "([^\\s]+)") 
+}
+
+LINC_modified <-LINC_modified[, grepl("FC.",names(LINC_modified)) ]
+
+LINC_modified <-cbind(as.data.frame(Pert_names_after_LINC),as.data.frame(Pert_names_before_LINC), LINC_modified)
+
+colnames(LINC_modified) <- c("Compounds", "Original","BM2", "HBD1","HBD2", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
+
+```
+
+```{r}
+#write_xlsx(LINC_modified,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/LINC_all_compounds.xlsx")
+```
+
+So datasets I've got:
+```{r}
+
+U133A_modified  #"BM2","HBD1","HBD2","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP4",   "IL1B","IL8","CCL20","TNF"
+
+U133APLUS_modified #"BM2","HBD1","HBD2","HBD3","HBD4","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3","PGLYRP4","IL1B","IL8","CCL20","TNF" 
+
+U219_modified #"BM2","HBD1","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3",   "PGLYRP4","IL1B","IL8","CCL20","TNF" 
+
+LINC_modified #"BM2","HBD1","HBD2","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP4","IL1B","IL8","CCL20","TNF"
+```
+
+#2. Find the compounds inducing the highest gene expression for each dataset 
+Separate dataset for each platform into separate tables for each gene, do the analysis of each gene to identify compounds that can be interesting!!
+
+```{r function to use}
+find_expression <- function(data, gene){
+  
+  ordered_data <- data %>%
+  dplyr::filter(!!rlang::parse_expr(gene) >= 2) %>% 
+  dplyr::select(c(Compounds, Original, gene, IL1B,IL8, CCL20,TNF)) %>%
+  arrange(desc(!!rlang::parse_expr(gene)))
+
+  return(ordered_data)
+} 
+```
+
+U133A_modified
+```{r}
+#HBD1
+
+U133A_HBD1 <- U133A_modified %>%
+  arrange(desc(U133A_modified$HBD1)) %>%
+  filter(HBD1 >= 2)
+
+U133A_HBD1 <- U133A_HBD1[,c("Compounds","Original","HBD1","IL1B","IL8", "CCL20", "TNF")]
+
+#HBD2
+
+U133A_HBD2 <- find_expression(U133A_modified,"HBD2")
+
+#write.csv(U133A_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_HBD2.csv")
+
+#LL37
+
+U133A_LL37 <-find_expression(U133A_modified,"LL37")
+
+#write.csv(U133A_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_LL37.csv")
+
+#REG3A
+
+U133A_REG3A <- find_expression(U133A_modified,"REG3A")
+
+#PLA2G2A
+
+U133A_PLA2G2A <- find_expression(U133A_modified,"PLA2G2A")
+
+#write.csv(U133A_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_PLA2G2A.csv")
+
+#PGLYRP1
+
+U133A_PGLYRP1 <- find_expression(U133A_modified,"PGLYRP1")
+
+#write.csv(U133A_PGLYRP1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_PGLYRP1.csv")
+
+
+#PGLYRP4
+
+U133A_PGLYRP4 <- find_expression(U133A_modified,"PGLYRP4")
+
+#write.csv(U133A_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_PGLYRP4.csv")
+```
+
+U133APLUS_modified
+```{r}
+#"HBD1
+
+U133APLUS_HBD1 <- find_expression(U133APLUS_modified,"HBD1")
+
+#write.csv(U133APLUS_HBD1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD1.csv")
+
+#HBD2
+
+U133APLUS_HBD2 <- find_expression(U133APLUS_modified,"HBD2")
+
+#write.csv(U133APLUS_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD2.csv")
+
+#HBD3
+
+U133APLUS_HBD3 <- find_expression(U133APLUS_modified,"HBD3")
+
+#write.csv(U133APLUS_HBD3,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD3.csv")
+
+#HBD4
+
+U133APLUS_HBD4 <- find_expression(U133APLUS_modified,"HBD4")
+
+#write.csv(U133APLUS_HBD4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD4.csv")
+
+#LL37
+
+U133APLUS_LL37 <- find_expression(U133APLUS_modified,"LL37")
+
+#write.csv(U133APLUS_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_LL37.csv")
+
+#REG3A
+
+U133APLUS_REG3A <- find_expression(U133APLUS_modified,"REG3A")
+
+#write.csv(U133APLUS_REG3A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_REG3A.csv")
+
+#PLA2G2A 
+
+U133APLUS_PLA2G2A <- find_expression(U133APLUS_modified,"PLA2G2A")
+
+#write.csv(U133APLUS_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_PLA2G2A.csv")
+
+#PGLYRP1
+
+U133APLUS_PGLYRP1 <- U133APLUS_modified %>%
+  arrange(desc(U133APLUS_modified$PGLYRP1)) %>%
+  filter(PGLYRP1 >= 2)
+
+U133APLUS_PGLYRP1 <- U133APLUS_PGLYRP1[,c("Compounds","Original","PGLYRP1","IL1B","IL8", "CCL20", "TNF")]
+
+#PGLYRP2
+
+U133APLUS_PGLYRP2 <-find_expression(U133APLUS_modified,"PGLYRP2")
+
+#write.csv(U133APLUS_PGLYRP2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_PGLYRP2.csv")
+
+#PGLYRP3
+
+U133APLUS_PGLYRP3 <-find_expression(U133APLUS_modified,"PGLYRP3")
+
+#PGLYRP4
+
+U133APLUS_PGLYRP4 <-  find_expression(U133APLUS_modified,"PGLYRP4")
+
+#write.csv(U133APLUS_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_PGLYRP4.csv")
+
+```
+
+U219_modified (not a single gene)
+```{r}
+#HBD1
+find_expression(U219_modified, "HBD1")
+
+#LL37
+find_expression(U219_modified, "LL37")
+
+#REG3A
+find_expression(U219_modified, "REG3A")
+
+#PLA2G2A
+find_expression(U219_modified, "PLA2G2A")
+
+#PGLYRP1
+find_expression(U219_modified, "PGLYRP1")
+
+#PGLYRP2
+find_expression(U219_modified, "PGLYRP2")
+
+#PGLYRP3
+find_expression(U219_modified, "PGLYRP3")
+
+#PGLYRP4
+find_expression(U219_modified, "PGLYRP4")
+```
+
+LINC_modified
+```{r}
+
+#HBD1
+
+LINC_HBD1 <- find_expression(LINC_modified, "HBD1")
+
+#write.csv(LINC_HBD1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_HBD1.csv")
+
+unique_LINC_HBD1 <- LINC_HBD1[!duplicated(LINC_HBD1$Compounds),]
+
+#write.csv(unique_LINC_HBD1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_HBD1.csv")
+
+#HBD2
+
+LINC_HBD2 <- find_expression(LINC_modified, "HBD2")
+
+#write.csv(LINC_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_HBD2.csv")
+
+unique_LINC_HBD2 <- LINC_HBD2[!duplicated(LINC_HBD2$Compounds),]
+
+#write.csv(unique_LINC_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_HBD2.csv")
+
+#LL37
+
+LINC_LL37 <- find_expression(LINC_modified, "LL37")
+
+#write.csv(LINC_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_LL37.csv")
+
+unique_LINC_LL37 <- LINC_LL37[!duplicated(LINC_LL37$Compounds),]
+
+#write.csv(unique_LINC_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_LL37.csv")
+
+#REG3A
+
+LINC_REG3A <- find_expression(LINC_modified, "REG3A")
+
+#write.csv(LINC_REG3A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_REG3A.csv")
+
+unique_LINC_REG3A <- LINC_REG3A[!duplicated(LINC_REG3A$Compounds),]
+
+#write.csv(unique_LINC_REG3A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_REG3A.csv")
+
+#PLA2G2A
+
+LINC_PLA2G2A <- find_expression(LINC_modified, "PLA2G2A")
+
+#write.csv(LINC_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_PLA2G2A.csv")
+
+unique_LINC_PLA2G2A <- LINC_PLA2G2A[!duplicated(LINC_PLA2G2A$Compounds),]
+
+#write.csv(unique_LINC_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_PLA2G2A.csv")
+
+#PGLYRP1
+
+LINC_PGLYRP1 <- find_expression(LINC_modified, "PGLYRP1")
+
+#write.csv(LINC_PGLYRP1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_PGLYRP1.csv")
+
+unique_LINC_PGLYRP1 <- LINC_PGLYRP1[!duplicated(LINC_PGLYRP1$Compounds),]
+
+#write.csv(unique_LINC_PGLYRP1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_PGLYRP1.csv")
+
+#PGLYRP4
+
+LINC_PGLYRP4 <- find_expression(LINC_modified, "PGLYRP4")
+
+#write.csv(LINC_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_PGLYRP4.csv")
+
+unique_LINC_PGLYRP4 <- LINC_PGLYRP4[!duplicated(LINC_PGLYRP4$Compounds),]
+
+#write.csv(unique_LINC_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_PGLYRP4.csv")
+
+
+```
+
+
+#3. Check which compounds are common between  platforms
+```{r, indiv compound names}
+
+#U133A
+
+U133_tables <- list(U133A_HBD2,U133A_LL37,U133A_PLA2G2A,U133A_PGLYRP1,U133A_PGLYRP4)
+
+length(unique(U133A_HBD2$Compounds)) #23
+length(unique(U133A_LL37$Compounds)) # 8
+length(unique(U133A_PLA2G2A$Compounds)) # 20
+length(unique(U133A_PGLYRP1$Compounds)) # 17
+length(unique(U133A_PGLYRP4$Compounds)) # 25
+# 93
+
+U133_compounds_names <- c()
+for (i in 1:length(U133_tables)){
+  U133_compounds_names <-c(U133_compounds_names, unlist(unique(U133_tables[[i]]["Compounds"])))
+}
+
+U133_compounds_names <- unname(U133_compounds_names)
+
+#U133APLUS
+
+U133PLUS_tables <- list(U133APLUS_HBD1,U133APLUS_HBD2,U133APLUS_HBD3,U133APLUS_HBD4,U133APLUS_LL37,U133APLUS_REG3A,U133APLUS_PLA2G2A,U133APLUS_PGLYRP2,U133APLUS_PGLYRP4)
+
+U133PLUS_compounds_names <- c()
+for (i in 1:length(U133PLUS_tables)){
+  U133PLUS_compounds_names <-c(U133PLUS_compounds_names, unlist(unique(U133PLUS_tables[[i]]["Compounds"])))
+}
+
+U133PLUS_compounds_names <- unname(U133PLUS_compounds_names)
+
+#LINC-L1000
+
+LINC_tables <- list(LINC_HBD1,LINC_HBD2,LINC_LL37,LINC_REG3A,LINC_PLA2G2A,LINC_PGLYRP1,LINC_PGLYRP4)
+
+LINC_compounds_names <- c()
+for (i in 1:length(LINC_tables)){
+  LINC_compounds_names <-c(LINC_compounds_names, unlist(unique(LINC_tables[[i]]["Compounds"])))
+}
+
+LINC_compounds_names <- unname(LINC_compounds_names)
+
+###all tables together now:
+U133_compounds_names
+U133PLUS_compounds_names
+LINC_compounds_names
+
+
+all_compounds_together <- c(U133_compounds_names,U133PLUS_compounds_names,LINC_compounds_names)
+frequency_compounds <-as.data.frame(table(all_compounds_together)) %>%
+  arrange(desc(Freq))
+
+#okay so it has to be unique within conditions!ą
+
+  # what compounds from LINCS aren't included in REG3A data?
+  
+new <- c(unique(LINC_compounds_names), unique_LINC_REG3A$Compounds)
+  #either of these methods wors:
+which(!(duplicated(new)|duplicated(new, fromLast=TRUE)))
+names(which(table(new) == 1))
+# "BMS509744"       "CX-5461"         "GSK-J2"          "KU-55933"        "tivozanib"    "tranylcypromine" "VE821"           "WZ-7043"
+
+```
+
+
+#4.Analysis of LINC compounds in HT-29 cell type. 
+
+```{r}
+
+LINC_perturbations <- LINC_modified$Original
+  
+LINC_time <- c()
+LINC_conc <- c()
+LINC_cell <- c()
+LINC_compound <- c()
+
+for (i in 1:length(LINC_perturbations)){
+
+  linc_perturbations_results <- str_match(as.list(LINC_perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*")
+  LINC_time[i] <- linc_perturbations_results[2]
+  LINC_conc[i] <- linc_perturbations_results[3]
+  LINC_cell[i] <- linc_perturbations_results[4]
+  LINC_compound[i] <-str_extract(LINC_perturbations[i], "([^\\s]+)") 
+  
+}
+
+LINC_compounds <-cbind(as.data.frame(LINC_cell),as.data.frame(LINC_conc),as.data.frame(LINC_time), as.data.frame(LINC_modified))
+
+LINC_compounds_HT29 <-LINC_compounds %>%
+  filter(LINC_cell == "HT29") 
+
+LINC_HT29_f_gathered <- gather(LINC_compounds_HT29,key = Gene, value = Expression_ratio, -c(1:5)) 
+
+HT29_freq_each_gene <-LINC_HT29_f_gathered %>%
+  filter(Gene %in% AMP_LINC) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Gene_Frequency = sum((Expression_ratio >= 2) == TRUE)) %>%
+  pivot_wider(names_from = Gene,values_from = Gene_Frequency)
+
+write_xlsx(HT29_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/HT29_freq_each_gene.xlsx")
+
+#If you keep checking that, it works!! sum((LINC_HT29_f_gathered[LINC_HT29_f_gathered$Compounds == "dinaciclib" & LINC_HT29_f_gathered$Gene %in% AMP_LINC,7] >= 2) == TRUE)
+
+as.data.frame(table(LINC_compounds_HT29$Compounds))
+#Compounds were tested either 5 or 6 times
+as.data.frame(table(LINC_compounds_HT29$LINC_conc))
+as.data.frame(table(LINC_compounds_HT29$LINC_time))
+
+```
+
+This bit was about creating the drug_main_analaysis (or sth like that). Before I only had info about one AMP gene and PRo genes,  here I include info about expression of other genes in this condition.
+```{r}
+#sunitinib (24h; 1.11uM; HA1E) / DMSO control (24h; HA1E)
+main_analysis_of_compounds[206,2] <- "sunitinib (24h; 1.11uM; HA1E) / DMSO control (24h; HA1E)" #somehow I deleted this value
+
+LINC_selected_all_genes_to_add <- LINC_modified[LINC_modified$Original %in% main_analysis_of_compounds$Original,]
+
+U133A_selected_all_genes_to_add <- U133A_modified[U133A_modified$Original %in% main_analysis_of_compounds$Original, ]
+
+U133APLUS_selected_all_genes_to_add <- U133APLUS_modified[U133APLUS_modified$Original %in%  main_analysis_of_compounds$Original,]
+
+nrow(LINC_selected_all_genes_to_add) #270
+nrow(U133A_selected_all_genes_to_add) #28
+nrow(U133APLUS_selected_all_genes_to_add) # 21
+# that doesn't add up to 321, it's 319. Okay that's bc there are duplicates it seems! # geldanamycin, captopril, SC-58125
+
+which(duplicated(main_analysis_of_compounds$Compounds))
+which(duplicated(main_analysis_of_compounds$Original)) #276 309
+# even duplicated annotations, that's fine! it happens :) and at least now I got rid of it :)
+
+attempt_main_analysis <- main_analysis_of_compounds[,-c(3:7)]
+attempt_with_LINC <-full_join(attempt_main_analysis,LINC_selected_all_genes_to_add, by = "Original" ) # good, we can leave it here since that's the trickiest one
+attempt_with_LINC <-attempt_with_LINC[,-6]
+
+
+#write_xlsx(attempt_with_LINC, "/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/attempt_with_LINC.xlsx")
+```
+
+#5. Adding information about what AMPs were upregulated for each compound
+
+The idea is to add a new column to the main analysis table (~317 compounds) where it'll say what AMPs were induced for this compound. 
+
+-it would be one row/copmpound with all AMPs listed maybe in the descending order!
+
+Loading datasets I will use 
+```{r}
+#data with the individual compounds
+main_analysis_of_compounds$`Compounds (blue = approved, purple = clinical trial or discontinued, white = non)` # line 608
+
+#platforms
+U133A_modified # chunk starting at 76
+U133APLUS_modified # chunk starting at 33
+LINC_modified # chunk starting at 170
+```
+
+Select rows that are in these conditions, for each platform
+```{r}
+
+#Error in stri_detect_regex(string, pattern, negate = negate, opts_regex = opts(pattern)) : Syntax error in regex pattern. (U_REGEX_RULE_SYNTAX, context=`(+)-JQ1`)
+which(str_detect(string = main_analysis_of_compounds$Compounds, "\\(\\+\\)\\-"))
+which(str_detect(string = main_analysis_of_compounds$Compounds, "\\(\\-\\)\\-"))
+main_analysis_of_compounds[74,2] <- "minus_JQ1"
+main_analysis_of_compounds[92,2] <- "plus_JQ1"
+U133A_modified[107,1] <- "plus_isoprenaline"
+U133A_modified[171,1] <- "minus_isoprenaline"
+U133A_modified[1109,1] <- "catechin"
+U133A_modified[1381,1] <- "chelidonine"
+
+empty_string <- c()
+
+for (i in 1:nrow(U133A_modified)){
+  for (j in 1:nrow(main_analysis_of_compounds)){
+    if(str_detect(string = main_analysis_of_compounds[j,2],pattern = U133A_modified[i,1]) == TRUE){
+      empty_string <- c(empty_string, U133A_modified[i,1])
+      break
+    }
+  }
+}
+
+empty_string_unique <- unique(empty_string) # 48
+
+U133A_for_genes <-U133A_modified[U133A_modified$Compounds %in% empty_string_unique,]
+
+
+str_detect(string = main_analysis_of_compounds[315,2],U133A_modified[1583,1])
+# cobalt in cobalt chloride
+
+```
+
+Utlimate test of the approach above with LINC ( i should expect to have all compounds selected)
+```{r}
+
+LINC_modified$Compounds[which(LINC_modified$Compounds == "(+)-JQ1")] = "JQ1"
+LINC_modified$Compounds[which(LINC_modified$Compounds == "(-)-JQ1")] = "JQ1"
+LINC_modified$Compounds[which(LINC_modified$Compounds == "sutent")] = "sunitinib"
+main_analysis_of_compounds[206,2] = "TGX-221"
+
+ #that naming may be problematic. Better to change it 
+empty_string_LINC <- c()
+
+for (i in 1:nrow(LINC_modified)){
+  for (j in 1:nrow(main_analysis_of_compounds)){
+    if(str_detect(string = main_analysis_of_compounds[j,2],pattern = LINC_modified[i,1]) == TRUE){
+      empty_string_LINC <- c(empty_string_LINC, LINC_modified[i,1])
+      break
+    }
+  }
+}
+
+#okay we've got 21413! we've got it all!
+
+empty_string_LINC <- unique(empty_string_LINC)
+
+
+LINC_for_genes <-LINC_modified[LINC_modified$Compounds %in% empty_string_LINC,] # well yea, everything
+
+
+```
+
+```{r}
+ #that naming may be problematic. Better to change it 
+empty_string_U133APLUS <- c()
+
+for (i in 1:nrow(U133APLUS_modified)){
+  for (j in 1:nrow(main_analysis_of_compounds)){
+    if(str_detect(string = main_analysis_of_compounds[j,2],pattern = U133APLUS_modified[i,1]) == TRUE){
+      empty_string_U133APLUS <- c(empty_string_U133APLUS, U133APLUS_modified[i,1])
+      break
+    }
+  }
+}
+
+empty_string_U133APLUS <- unique(empty_string_U133APLUS)
+
+U133APLUS_for_genes <-U133APLUS_modified[U133APLUS_modified$Compounds %in% empty_string_U133APLUS,] # 135 rows
+
+# for some reason benzo[a]pyrene didn't work! makes no sense 
+main_analysis_of_compounds[308,2]
+U133APLUS_modified[19,1]
+str_detect(string = main_analysis_of_compounds[308,2],pattern = U133APLUS_modified[19,1]) # 
+
+```
+
+Select compounds from main_analysis 
+```{r}
+#U133A
+
+AMP_U133A_2 <- c("HBD1","HBD2","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP4")
+
+#get the frequency for each 
+U133A_gathered <- U133A_for_genes %>%
+  dplyr::select(1:10) %>%
+  gather(key = Gene, value = Expression_ratio, -c(1:2)) 
+
+U133A_freq_each_gene <-U133A_gathered %>%
+  filter(Gene %in% AMP_U133A_2) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Gene_Frequency = sum((Expression_ratio >= 2) == TRUE)) %>%
+  pivot_wider(names_from = Gene,values_from = Gene_Frequency)
+
+write_xlsx(U133A_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/U133A_freq_each_gene.xlsx")
+
+#the awful way i used to get the names, fine let's leave it for the moment
+U133A_logic <- as.data.frame(U133A_for_genes[,AMP_U133A_2] > 2)
+U133A_genes_concatenated <- list()
+for (i in 1:nrow(U133A_logic)) {
+  numberss <- which(U133A_logic[i,] == TRUE)
+  U133A_genes_concatenated[[i]] <- AMP_U133A_2[numberss]
+  
+}
+names(U133A_genes_concatenated) <- U133A_for_genes$Compounds
+nm <- names(U133A_genes_concatenated)
+result <- lapply(unique(nm), function(n) unname(unlist(U133A_genes_concatenated[nm %in% n])))
+names(result) <- unique(nm)
+result_U133A <-lapply(result, function(x) toString(unique(x)))
+result_U133A <-as.data.frame(unlist(result_U133A))
+result_U133A$Compounds <- unique(U133A_for_genes$Compounds)
+
+write_xlsx(result_U133A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/U133A_expressed_genes_each_compound.xlsx")
+
+#U133APLUS
+AMP_U133PLUS_2_0 <-c("HBD1","HBD2","HBD3","HBD4","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3","PGLYRP4" )
+
+#get the frequency for each 
+U133APLUS_gathered <- U133APLUS_for_genes %>%
+  dplyr::select(1:14) %>%
+  gather(key = Gene, value = Expression_ratio, -c(1:2)) 
+
+U133APLUS_freq_each_gene <-U133APLUS_gathered %>%
+  filter(Gene %in% AMP_U133PLUS_2_0) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Gene_Frequency = sum((Expression_ratio >= 2) == TRUE)) %>%
+  pivot_wider(names_from = Gene,values_from = Gene_Frequency)
+
+write_xlsx(U133APLUS_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/U133APLUS_freq_each_gene.xlsx")
+
+#the (convvvvvoluted) way to get names of genes
+U133APLUS_logic <- as.data.frame(U133APLUS_for_genes[,AMP_U133PLUS_2_0] > 2)
+
+U133APLUS_genes_concatenated <- list()
+for (i in 1:nrow(U133APLUS_logic)) {
+  numberss <- which(U133APLUS_logic[i,] == TRUE)
+  U133APLUS_genes_concatenated[[i]] <- AMP_U133PLUS_2_0[numberss]
+  
+}
+
+names(U133APLUS_genes_concatenated) <- U133APLUS_for_genes$Compounds
+nm_PLUS <- names(U133APLUS_genes_concatenated)
+result_PLUS <- lapply(unique(nm_PLUS), function(n) unname(unlist(U133APLUS_genes_concatenated[nm_PLUS %in% n])))
+names(result_PLUS) <- unique(nm_PLUS)
+result_U133APLUS <-lapply(result_PLUS, function(x) toString(unique(x)))
+result_U133APLUS <-as.data.frame(unlist(result_U133APLUS))
+result_U133APLUS$Compounds <- unique(U133APLUS_for_genes$Compounds)
+
+write_xlsx(result_U133APLUS,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/U133APLUS_expressed_genes_each_compound.xlsx")
+
+#LINC
+AMP_LINC <- c("HBD1","HBD2","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP4")
+
+#get the frequency for each 
+LINC_gathered <- LINC_for_genes %>%
+  dplyr::select(1:10) %>%
+  gather(key = Gene, value = Expression_ratio, -c(1:2)) 
+
+LINC_freq_each_gene <-LINC_gathered %>%
+  filter(Gene %in% AMP_LINC) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Gene_Frequency = sum((Expression_ratio >= 2) == TRUE)) %>%
+  pivot_wider(names_from = Gene,values_from = Gene_Frequency)
+
+write_xlsx(LINC_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/LINC_freq_each_gene.xlsx")
+
+LINC_logic <- as.data.frame(LINC_for_genes[,AMP_LINC] > 2)
+
+LINC_genes_concatenated <- list()
+for (i in 1:nrow(LINC_logic)) {
+  numberss <- which(LINC_logic[i,] == TRUE)
+  LINC_genes_concatenated[[i]] <- AMP_LINC[numberss]
+}
+
+names(LINC_genes_concatenated) <- LINC_for_genes$Compounds
+nm_LINC <- names(LINC_genes_concatenated)
+result_LINC <- lapply(unique(nm_LINC), function(n) unname(unlist(LINC_genes_concatenated[nm_LINC %in% n])))
+names(result_LINC) <- unique(nm_LINC)
+result_LINC <-lapply(result_LINC, function(x) toString(unique(x)))
+result_LINC <-as.data.frame(unlist(result_LINC))
+result_LINC$Compounds <- unique(LINC_for_genes$Compounds)
+
+# they're all here but now i've got 268 compounds instead of 270. I think it's beacuse ive chagned sutent to sunetinib and (+)/(-)-JQ1 into JQ1
+setdiff(unique(LINC_modified$Compounds),unique(LINC_for_genes$Compounds))
+
+write_xlsx(result_LINC,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/LINC_expressed_genes_each_compound.xlsx")
+```
+
+Okay so now it would be preferable to join these into one table and then join it with the compounds one, just wondering if it'd be possible really
+``` {r}
+drug_main_analysis <- read_xlsx("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/drug_main_analysis_wip.xlsx")
+
+result_U133APLUS
+result_U133A
+result_LINC
+
+write_xlsx(left_join(result_LINC,drug_main_analysis, by = "Compounds"),"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/drug_main_analysis_return_with_compounds_11_03_22.xlsx")
+
+# i can actually leave it here, since they may repeat and I dont want to override them!
+
+```
+
+
+#Side stuff: check whether with different regex you get the same compounds as with the regex you did!
+FOR LINC Only, for other platforms i'd notice myself!
+
+
+```{r}
+#541 chunk
+
+
+str_extract(LINC_perturbations[10], "^[^\\(]*")
+
+LINC_perturbations <- LINC_modified$Original
+perturbations_to_keep <- c()
+for (i in 1:length(LINC_perturbations)){
+  perturbations_to_keep <- c(perturbations_to_keep, str_extract(LINC_perturbations[i], "^[^\\(]*"))
+  
+}
+
+result_LINC$Compounds %in% unique(perturbations_to_keep) # even though it says otherwise, it's basically the same 
+
+new_compounds <- as.data.frame(unique(perturbations_to_keep))
+old_compounds <-as.data.frame(result_LINC$Compounds)
+```
+
+<!-- #6. Selected compounds from manual analysis (approved and filtered) -->
+
+<!-- ```{r} -->
+
+<!-- LINC_app_dev <-LINC_modified[LINC_modified$Original %in% xls_compounds$Original,] -->
+<!-- nrow(LINC_app_dev) -->
+
+<!-- length(LINC_app_dev$Compounds) == length(unique(LINC_app_dev$Compounds)) -->
+
+<!-- LINC_histone_compounds <- LINC_modified[LINC_modified$Compounds %in% LINC_app_dev$Compounds,]  -->
+
+<!-- LINC_histone_perturbations <- LINC_histone_compounds$Original -->
+
+<!-- LINC_histone_time <- c() -->
+<!-- LINC_histone_conc <- c() -->
+<!-- LINC_histone_cell <- c() -->
+
+<!-- for (i in 1:length(LINC_histone_perturbations)){ -->
+
+<!--   linc_perturbations_results <- str_match(as.list(LINC_histone_perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*") -->
+<!--   LINC_histone_time[i] <- linc_perturbations_results[2] -->
+<!--   LINC_histone_conc[i] <- linc_perturbations_results[3] -->
+<!--   LINC_histone_cell[i] <- linc_perturbations_results[4] -->
+
+<!-- } -->
+
+<!-- LINC_histone_compounds <-cbind(as.data.frame(LINC_histone_time),as.data.frame(LINC_histone_conc),as.data.frame(LINC_histone_cell),LINC_histone_compounds) -->
+
+
+<!-- ``` -->
+
+<!-- Preparing the table for figures -->
+<!-- ```{r} -->
+<!-- LINC_histone_compounds_gathered <- gather(LINC_histone_compounds, key = "Gene", value = "Expression_ratio", -c(LINC_histone_time,LINC_histone_conc,LINC_histone_cell,Compounds,Original,)) -->
+
+<!-- ``` -->
+
+<!-- Belinostat: -->
+<!-- ```{r} -->
+<!-- # let's start with approved ones: belinostat, pracinostat, vorinostat, celastrol -->
+
+<!-- belinostat <- LINC_histone_compounds_gathered %>% -->
+<!--   filter(Compounds == "belinostat") -->
+
+<!-- belinostat$Gene <- factor(belinostat$Gene, levels = c("BM2", "HBD1","HBD2","LL37", "REG3A", "PLA2G2A", "PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")) -->
+
+<!-- belinostat$LINC_histone_conc <- factor(belinostat$LINC_histone_conc, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM")) -->
+
+<!-- ggplot(belinostat, mapping = aes(x = Gene, y = Expression_ratio, fill = LINC_histone_conc)) + -->
+<!--     geom_bar(stat = "identity",position = "dodge") + -->
+<!--   theme_classic() + -->
+<!--   xlab("Gene") + -->
+<!--   ylab("Expression Ratio") + -->
+<!--   labs(fill = "Concentration") + -->
+<!--   ggtitle("Belinostat") +  -->
+<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5) -->
+<!-- ) -->
+
+<!-- ggplot(belinostat[belinostat$Gene == "REG3A",], mapping = aes(x = LINC_histone_cell, y = Expression_ratio)) + -->
+<!--   geom_boxplot(outlier.colour = "white") + -->
+<!--   geom_point(aes(colour = LINC_histone_conc)) + -->
+<!--   theme_classic() +  -->
+<!--   labs(fill = "Concentration") + -->
+<!--   ylab("REG3A Expression Ratio") + -->
+<!--   xlab("Cell type") + -->
+<!--   coord_flip()  + -->
+<!--   ggtitle("Belinostat") +  -->
+<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) -->
+
+<!-- ``` -->
+
+<!-- Pracinostat: -->
+<!-- ```{r} -->
+<!-- pracinostat <-LINC_histone_compounds_gathered[LINC_histone_compounds_gathered$Compounds == "pracinostat",] -->
+
+<!-- pracinostat$Gene <- factor(pracinostat$Gene, levels = c("BM2", "HBD1","HBD2","LL37", "REG3A", "PLA2G2A", "PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")) -->
+
+<!-- pracinostat$LINC_histone_conc <- factor(pracinostat$LINC_histone_conc, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM")) -->
+
+<!-- ggplot(pracinostat, mapping = aes(x = Gene, y = Expression_ratio, fill = LINC_histone_conc)) + -->
+<!--     geom_bar(stat = "identity",position = "dodge") + -->
+<!--   theme_classic() + -->
+<!--   xlab("Gene") + -->
+<!--   ylab("Expression Ratio") + -->
+<!--    labs(fill = "Concentration") + -->
+<!--   ggtitle("Pracinostat") +  -->
+<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5) -->
+<!-- ) -->
+
+<!-- ggplot(belinostat[belinostat$Gene == "PLA2G2A",], mapping = aes(x = LINC_histone_cell, y = Expression_ratio)) + -->
+<!--   geom_boxplot(outlier.colour = "white") + -->
+<!--   geom_point(aes(colour = LINC_histone_conc)) + -->
+<!--   theme_classic() + -->
+<!--   labs(fill = "Concentration") + -->
+<!--   ylab("PLA2G2A Expression Ratio") + -->
+<!--   xlab("Cell type") + -->
+<!--   coord_flip()  + -->
+<!--   ggtitle("Pracinostat") +  -->
+<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) -->
+
+<!-- ``` -->
+
+
+<!-- Vorinostat -->
+<!-- ```{r} -->
+
+<!-- vorinostat <-LINC_histone_compounds_gathered[LINC_histone_compounds_gathered$Compounds == "vorinostat",] -->
+
+<!-- vorinostat$Gene <- factor(vorinostat$Gene, levels = c("BM2", "HBD1","HBD2","LL37", "REG3A", "PLA2G2A", "PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")) -->
+
+<!-- vorinostat$LINC_histone_conc <- factor(vorinostat$LINC_histone_conc, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM")) -->
+
+<!-- ggplot(vorinostat, mapping = aes(x = Gene, y = Expression_ratio, fill = LINC_histone_conc)) + -->
+<!--     geom_bar(stat = "identity",position = "dodge") + -->
+<!--   theme_classic() + -->
+<!--   xlab("Gene") + -->
+<!--   ylab("Expression Ratio") + -->
+<!--    labs(fill = "Concentration") + -->
+<!--   ggtitle("Vorinostat") +  -->
+<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
+<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5) -->
+<!-- ) -->
+
+<!-- ggplot(vorinostat[vorinostat$Gene == "PLA2G2A",], mapping = aes(x = LINC_histone_cell, y = Expression_ratio)) + -->
+<!-- geom_boxplot(outlier.colour = "white") + -->
+<!--   geom_point(aes(colour = LINC_histone_conc)) + -->
+<!--   theme_classic() + -->
+<!--   labs(fill = "Concentration") + -->
+<!--   ylab("PLA2G2A Expression Ratio") + -->
+<!--   xlab("Cell type") + -->
+<!--   coord_flip()  + -->
+<!--   ggtitle("Vorinostat") +  -->
+<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) -->
+
+
+<!-- celastrol <-LINC_histone_compounds_gathered[LINC_histone_compounds_gathered$Compounds == "celastrol",] -->
+<!-- ``` -->
+
+
+
+<!-- ```{r} -->
+<!-- # U133_app_dev <-U133A_modified[U133A_modified$Original %in% xls_compounds$Original,] -->
+<!-- # nrow(U133_app_dev) -->
+<!-- #  -->
+<!-- # View(U133A_modified[U133A_modified$Compounds %in% U133_app_dev$Compounds,]) -->
+<!-- #  -->
+<!-- # U133APLUS_app_dev <-U133APLUS_modified[U133APLUS_modified$Original %in% xls_compounds$Original,] -->
+<!-- # nrow(U133APLUS_app_dev) -->
+<!-- #  -->
+<!-- # View(U133APLUS_modified[U133APLUS_modified$Compounds %in% U133APLUS_app_dev$Compounds,]) -->
+<!-- #  -->
+<!-- # U219_app_dev <-U219_modified[U219_modified$Original %in% xls_compounds$Original,] -->
+<!-- # nrow(U219_app_dev)  -->
+<!-- ``` -->
+
+
