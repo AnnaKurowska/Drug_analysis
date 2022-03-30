@@ -20,6 +20,7 @@ library(pheatmap)
 library(MixGHD) # hierarchical clustering which i will finally not use
 library(viridis)
 library(ggpubr)
+library(hash)
 ```
 
 ```{r setup, include=FALSE}
@@ -455,73 +456,7 @@ unique_LINC_PGLYRP4 <- LINC_PGLYRP4[!duplicated(LINC_PGLYRP4$Compounds),]
 ```
 
 
-#3. Check which compounds are common between  platforms
-```{r, indiv compound names}
-
-#U133A
-
-U133_tables <- list(U133A_HBD2,U133A_LL37,U133A_PLA2G2A,U133A_PGLYRP1,U133A_PGLYRP4)
-
-length(unique(U133A_HBD2$Compounds)) #23
-length(unique(U133A_LL37$Compounds)) # 8
-length(unique(U133A_PLA2G2A$Compounds)) # 20
-length(unique(U133A_PGLYRP1$Compounds)) # 17
-length(unique(U133A_PGLYRP4$Compounds)) # 25
-# 93
-
-U133_compounds_names <- c()
-for (i in 1:length(U133_tables)){
-  U133_compounds_names <-c(U133_compounds_names, unlist(unique(U133_tables[[i]]["Compounds"])))
-}
-
-U133_compounds_names <- unname(U133_compounds_names)
-
-#U133APLUS
-
-U133PLUS_tables <- list(U133APLUS_HBD1,U133APLUS_HBD2,U133APLUS_HBD3,U133APLUS_HBD4,U133APLUS_LL37,U133APLUS_REG3A,U133APLUS_PLA2G2A,U133APLUS_PGLYRP2,U133APLUS_PGLYRP4)
-
-U133PLUS_compounds_names <- c()
-for (i in 1:length(U133PLUS_tables)){
-  U133PLUS_compounds_names <-c(U133PLUS_compounds_names, unlist(unique(U133PLUS_tables[[i]]["Compounds"])))
-}
-
-U133PLUS_compounds_names <- unname(U133PLUS_compounds_names)
-
-#LINC-L1000
-
-LINC_tables <- list(LINC_HBD1,LINC_HBD2,LINC_LL37,LINC_REG3A,LINC_PLA2G2A,LINC_PGLYRP1,LINC_PGLYRP4)
-
-LINC_compounds_names <- c()
-for (i in 1:length(LINC_tables)){
-  LINC_compounds_names <-c(LINC_compounds_names, unlist(unique(LINC_tables[[i]]["Compounds"])))
-}
-
-LINC_compounds_names <- unname(LINC_compounds_names)
-
-###all tables together now:
-U133_compounds_names
-U133PLUS_compounds_names
-LINC_compounds_names
-
-
-all_compounds_together <- c(U133_compounds_names,U133PLUS_compounds_names,LINC_compounds_names)
-frequency_compounds <-as.data.frame(table(all_compounds_together)) %>%
-  arrange(desc(Freq))
-
-#okay so it has to be unique within conditions!ą
-
-  # what compounds from LINCS aren't included in REG3A data?
-  
-new <- c(unique(LINC_compounds_names), unique_LINC_REG3A$Compounds)
-  #either of these methods wors:
-which(!(duplicated(new)|duplicated(new, fromLast=TRUE)))
-names(which(table(new) == 1))
-# "BMS509744"       "CX-5461"         "GSK-J2"          "KU-55933"        "tivozanib"    "tranylcypromine" "VE821"           "WZ-7043"
-
-```
-
-
-#4.Analysis of LINC compounds in HT-29 cell type. 
+#3.Analysis of LINC compounds in HT-29 cell type. 
 
 ```{r}
 
@@ -555,9 +490,30 @@ HT29_freq_each_gene <-LINC_HT29_f_gathered %>%
   summarise(Gene_Frequency = sum((Expression_ratio >= 2) == TRUE)) %>%
   pivot_wider(names_from = Gene,values_from = Gene_Frequency)
 
-write_xlsx(HT29_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/HT29_freq_each_gene.xlsx")
+# write_xlsx(HT29_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/HT29_freq_each_gene.xlsx")
 
-#If you keep checking that, it works!! sum((LINC_HT29_f_gathered[LINC_HT29_f_gathered$Compounds == "dinaciclib" & LINC_HT29_f_gathered$Gene %in% AMP_LINC,7] >= 2) == TRUE)
+## Get names of upregulated genes for each compound in HT-29 cells. and then adding it to google docs, gonna add it manually this time!
+
+colnames(HT29_freq_each_gene)
+HT29_freq_each_gene[,2:ncol(HT29_freq_each_gene)]
+
+HT29_logic <- as.data.frame(HT29_freq_each_gene[,AMP_LINC] >= 1)
+
+HT29_genes_concatenated <- list()
+for (i in 1:nrow(HT29_logic)) {
+  numberss <- which(HT29_logic[i,] == TRUE)
+  HT29_genes_concatenated[[i]] <- AMP_LINC[numberss]
+}
+
+names(HT29_genes_concatenated) <- HT29_freq_each_gene$Compounds
+nm_HT29 <- names(HT29_genes_concatenated)
+result_HT29 <- lapply(unique(nm_HT29), function(n) unname(unlist(HT29_genes_concatenated[nm_HT29 %in% n])))
+names(result_HT29) <- unique(nm_HT29)
+result_HT29 <-lapply(result_HT29, function(x) toString(unique(x)))
+result_HT29 <-as.data.frame(unlist(result_HT29))
+result_HT29$Compounds <- unique(HT29_freq_each_gene$Compounds)
+
+# write_xlsx(result_HT29, "/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/listed_upregulated_genes_HT29.xlsx")
 
 as.data.frame(table(LINC_compounds_HT29$Compounds))
 #Compounds were tested either 5 or 6 times
@@ -594,7 +550,7 @@ attempt_with_LINC <-attempt_with_LINC[,-6]
 #write_xlsx(attempt_with_LINC, "/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/attempt_with_LINC.xlsx")
 ```
 
-#5. Adding information about what AMPs were upregulated for each compound
+#4. Adding information about what AMPs were upregulated for each compound
 
 The idea is to add a new column to the main analysis table (~317 compounds) where it'll say what AMPs were induced for this compound. 
 
@@ -682,7 +638,7 @@ empty_string_U133APLUS <- c()
 for (i in 1:nrow(U133APLUS_modified)){
   for (j in 1:nrow(main_analysis_of_compounds)){
     if(str_detect(string = main_analysis_of_compounds[j,2],pattern = U133APLUS_modified[i,1]) == TRUE){
-      empty_string_U133APLUS <- c(empty_string_U133APLUS, U133APLUS_modified[i,1])
+      empty_string_U133APLUS <- c(empty_string_U133APLUS, U133APLUS_modified[i,1])  
       break
     }
   }
@@ -736,6 +692,7 @@ result_U133A$Compounds <- unique(U133A_for_genes$Compounds)
 
 write_xlsx(result_U133A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/U133A_expressed_genes_each_compound.xlsx")
 
+
 #U133APLUS
 AMP_U133PLUS_2_0 <-c("HBD1","HBD2","HBD3","HBD4","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3","PGLYRP4" )
 
@@ -770,14 +727,13 @@ result_U133APLUS <-lapply(result_PLUS, function(x) toString(unique(x)))
 result_U133APLUS <-as.data.frame(unlist(result_U133APLUS))
 result_U133APLUS$Compounds <- unique(U133APLUS_for_genes$Compounds)
 
-write_xlsx(result_U133APLUS,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/U133APLUS_expressed_genes_each_compound.xlsx")
+# write_xlsx(result_U133APLUS,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/U133APLUS_expressed_genes_each_compound.xlsx")
 
 #LINC
 AMP_LINC <- c("HBD1","HBD2","LL37","REG3A","PLA2G2A","PGLYRP1","PGLYRP4")
 
 #get the frequency for each 
 LINC_gathered <- LINC_for_genes %>%
-  dplyr::select(1:10) %>%
   gather(key = Gene, value = Expression_ratio, -c(1:2)) 
 
 LINC_freq_each_gene <-LINC_gathered %>%
@@ -786,7 +742,7 @@ LINC_freq_each_gene <-LINC_gathered %>%
   summarise(Gene_Frequency = sum((Expression_ratio >= 2) == TRUE)) %>%
   pivot_wider(names_from = Gene,values_from = Gene_Frequency)
 
-write_xlsx(LINC_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/LINC_freq_each_gene.xlsx")
+# write_xlsx(LINC_freq_each_gene,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/LINC_freq_each_gene.xlsx")
 
 LINC_logic <- as.data.frame(LINC_for_genes[,AMP_LINC] > 2)
 
@@ -807,7 +763,8 @@ result_LINC$Compounds <- unique(LINC_for_genes$Compounds)
 # they're all here but now i've got 268 compounds instead of 270. I think it's beacuse ive chagned sutent to sunetinib and (+)/(-)-JQ1 into JQ1
 setdiff(unique(LINC_modified$Compounds),unique(LINC_for_genes$Compounds))
 
-write_xlsx(result_LINC,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/LINC_expressed_genes_each_compound.xlsx")
+# write_xlsx(result_LINC,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/LINC_expressed_genes_each_compound.xlsx")
+
 ```
 
 Okay so now it would be preferable to join these into one table and then join it with the compounds one, just wondering if it'd be possible really
@@ -818,191 +775,275 @@ result_U133APLUS
 result_U133A
 result_LINC
 
-write_xlsx(left_join(result_LINC,drug_main_analysis, by = "Compounds"),"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/drug_main_analysis_return_with_compounds_11_03_22.xlsx")
+# write_xlsx(left_join(result_LINC,drug_main_analysis, by = "Compounds"),"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/drug_main_analysis_return_with_compounds_11_03_22.xlsx")
 
 # i can actually leave it here, since they may repeat and I dont want to override them!
 
 ```
 
-
-#Side stuff: check whether with different regex you get the same compounds as with the regex you did!
-FOR LINC Only, for other platforms i'd notice myself!
-
-
+#5. Max and mean value for each gene for each compound
 ```{r}
-#541 chunk
+
+#Find it for each platform
+
+#U133A
+
+ # I was a bit suprised with the choice of U133A_for_genes for this task. I forgot why I did that. The reason is that  platforms like U133A_modified and U133APLUS_modified contain even 1000s of unique compounds but I only want to find the max and median values of the compounds included in the main analysis.For LINC all compounds are included in HT29 cells simply because all compounds showed high expression at least once in the normal cells.
+
+U133A_max_mean <- U133A_for_genes %>%
+  gather(key = Gene, value = Expression_ratio, -c(1:2)) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Max = max(Expression_ratio),
+            Median = median(Expression_ratio)) %>%
+  pivot_wider(id_cols = Compounds, names_from = Gene, values_from = c(Max,Median)) %>%
+  add_column(Max_HBD3 = NA,
+             Max_HBD4 = NA,
+             Max_PGLYRP2 = NA,
+             Max_PGLYRP3 = NA,
+             Median_HBD3 = NA,
+             Median_HBD4 = NA,
+             Median_PGLYRP2 = NA,
+             Median_PGLYRP3 = NA)
+
+#U133APLUS
+
+U133APLUS_max_mean <-U133APLUS_for_genes %>%
+  gather(key = Gene, value = Expression_ratio, -c(1:2)) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Max = max(Expression_ratio),
+            Median = median(Expression_ratio)) %>%
+  pivot_wider(id_cols = Compounds, names_from = Gene, values_from = c(Max,Median))
+
+colnames(U133APLUS_max_mean)
+
+#LINC
+
+max_median_HT29_only <- LINC_HT29_f_gathered %>%
+  # filter(Gene %in% AMP_LINC) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Max = max(Expression_ratio),
+            Median = median(Expression_ratio)) %>%
+  pivot_wider(id_cols = Compounds, names_from = Gene, values_from = c(Max,Median)) %>% add_column(Max_HBD3 = NA,
+             Max_HBD4 = NA,
+             Max_PGLYRP2 = NA,
+             Max_PGLYRP3 = NA,
+             Median_HBD3 = NA,
+             Median_HBD4 = NA,
+             Median_PGLYRP2 = NA,
+             Median_PGLYRP3 = NA)
 
 
-str_extract(LINC_perturbations[10], "^[^\\(]*")
+U133A_U133APLUS_LINC <-rbind(max_median_HT29_only, U133A_max_mean, U133APLUS_max_mean)
+which(duplicated(U133A_U133APLUS_LINC$Compounds))
+#nrow 347
 
-LINC_perturbations <- LINC_modified$Original
-perturbations_to_keep <- c()
-for (i in 1:length(LINC_perturbations)){
-  perturbations_to_keep <- c(perturbations_to_keep, str_extract(LINC_perturbations[i], "^[^\\(]*"))
-  
-}
+# Okay now add these table, the issue is that the names won't match in some cases, but we just have to accept it
 
-result_LINC$Compounds %in% unique(perturbations_to_keep) # even though it says otherwise, it's basically the same 
+drug_main_analysis_18_03 <-read_xlsx("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/Drug_main_analysis_18_03_22.xlsx")
 
-new_compounds <- as.data.frame(unique(perturbations_to_keep))
-old_compounds <-as.data.frame(result_LINC$Compounds)
+##in drug_main_analysis_18_03, change names of compounds so they match with automatically selected names in U133A_U133APLUS_LINC e.g. valproic acid
+
+# JQ1
+which(drug_main_analysis_18_03$Compounds == "minus_JQ1")
+drug_main_analysis_18_03[281,3] <- "JQ1"
+
+#sodium chloride 
+
+which(drug_main_analysis_18_03$Compounds == "sodium chloride") #309
+drug_main_analysis_18_03[309,3] <- "sodium"
+
+#polysinosici poly....
+
+which(drug_main_analysis_18_03$Compounds == "polyinosinic-polycytidylic acid") #308
+drug_main_analysis_18_03[308,3] <- "polyinosinic-polycytidylic"
+
+#monastrol
+
+which(drug_main_analysis_18_03$Compounds == "monastrol (drug?)") #315
+drug_main_analysis_18_03[315,3] <- "monastrol"
+
+#exisulind
+
+which(drug_main_analysis_18_03$Compounds == "exisulind ((drug?))") #316
+drug_main_analysis_18_03[316,3] <- "exisulind"
+
+#cobalt chloride 
+
+which(drug_main_analysis_18_03$Compounds == "cobalt chloride") #154
+drug_main_analysis_18_03[154,3] <- "cobalt"
+
+#benzopyrene
+
+which(drug_main_analysis_18_03$Compounds == "benzo[a]pyrene") #148
+drug_main_analysis_18_03 <- drug_main_analysis_18_03[-c(148), ]
+
+#valproic acid
+
+which(drug_main_analysis_18_03$Compounds == "valproic acid") #61
+drug_main_analysis_18_03[61,3] <- "valproic"
+
+#pirinixic acid
+
+which(drug_main_analysis_18_03$Compounds == "pirinixic acid") #312
+drug_main_analysis_18_03[312,3] <- "pirinixic"
+
+drug_analysis_with_median_max<- left_join(x =  drug_main_analysis_18_03,y = U133A_U133APLUS_LINC, by= "Compounds")
+#nrow of that is 339 instead of 316. Some compounds are duplicated. in the  U133A_U133APLUS_LINC table (where i joined the 3 tables, it was 347) but length(unqiue(drug_analysis_plus_LINC$Compounds)) is 316 so it should be fine!
+
+
+#saving the main document with about 316 compounds where you can see toxicity profiles etc. 
+write_xlsx(drug_analysis_with_median_max,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/ddrug_analysis_with_median_max18_03_22.xlsx")
+
+
+#Now just load the most recent table from 
+
 ```
 
-<!-- #6. Selected compounds from manual analysis (approved and filtered) -->
+#6. I've got a list of top molecules, now I want to get rows when AMP DE is above 2. (chosen in excel)
 
-<!-- ```{r} -->
+```{r}
 
-<!-- LINC_app_dev <-LINC_modified[LINC_modified$Original %in% xls_compounds$Original,] -->
-<!-- nrow(LINC_app_dev) -->
+drug_analysis_with_median_max <- drug_analysis_with_median_max[,-c(7: 22)]
 
-<!-- length(LINC_app_dev$Compounds) == length(unique(LINC_app_dev$Compounds)) -->
+U133A_U133APLUS_platforms <- unique(drug_analysis_with_median_max$Platform)[2:length(unique(drug_analysis_with_median_max$Platform))] # basically save platform names that don't include LINC, that's because it's too many names at once
 
-<!-- LINC_histone_compounds <- LINC_modified[LINC_modified$Compounds %in% LINC_app_dev$Compounds,]  -->
+U133A_and_selected_compounds <- drug_analysis_with_median_max %>%
+  filter(drug_analysis_with_median_max$Platform %in% U133A_U133APLUS_platforms)
 
-<!-- LINC_histone_perturbations <- LINC_histone_compounds$Original -->
+#so I've got a table where for each gene, you have the max and median DE value. This was calculated based on all the experiments in which the compound was tested. Now, for each gene I want to see what are the highest MAX values above 2. I'm ordering it and then at the end I'll combine the tables for each gene and I'll calculate the frequency of each gene. In how many genes was the max value upregulated? I do it for LINC and U133A + U133APLUS separately as LINC has genrally much higher values!
 
-<!-- LINC_histone_time <- c() -->
-<!-- LINC_histone_conc <- c() -->
-<!-- LINC_histone_cell <- c() -->
+find_expression_selected_genes <- function(data, gene){
+  
+  ordered_data <- data %>%
+  arrange(desc(!!rlang::parse_expr(gene))) %>%
+  dplyr::filter(!!rlang::parse_expr(gene) >= 2)
 
-<!-- for (i in 1:length(LINC_histone_perturbations)){ -->
+  return(ordered_data)
+} 
 
-<!--   linc_perturbations_results <- str_match(as.list(LINC_histone_perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*") -->
-<!--   LINC_histone_time[i] <- linc_perturbations_results[2] -->
-<!--   LINC_histone_conc[i] <- linc_perturbations_results[3] -->
-<!--   LINC_histone_cell[i] <- linc_perturbations_results[4] -->
+HBD1_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_HBD1")
 
-<!-- } -->
+HBD2_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_HBD2")
 
-<!-- LINC_histone_compounds <-cbind(as.data.frame(LINC_histone_time),as.data.frame(LINC_histone_conc),as.data.frame(LINC_histone_cell),LINC_histone_compounds) -->
+HBD3_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_HBD3")
 
+HBD4_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_HBD4")
 
-<!-- ``` -->
+LL37_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_LL37")
 
-<!-- Preparing the table for figures -->
-<!-- ```{r} -->
-<!-- LINC_histone_compounds_gathered <- gather(LINC_histone_compounds, key = "Gene", value = "Expression_ratio", -c(LINC_histone_time,LINC_histone_conc,LINC_histone_cell,Compounds,Original,)) -->
+PGLYRP1_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_PGLYRP1")
 
-<!-- ``` -->
+PGLYRP2_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_PGLYRP2")
 
-<!-- Belinostat: -->
-<!-- ```{r} -->
-<!-- # let's start with approved ones: belinostat, pracinostat, vorinostat, celastrol -->
+PGLYRP3_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_PGLYRP3")
 
-<!-- belinostat <- LINC_histone_compounds_gathered %>% -->
-<!--   filter(Compounds == "belinostat") -->
+PGLYRP4_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_PGLYRP4")
 
-<!-- belinostat$Gene <- factor(belinostat$Gene, levels = c("BM2", "HBD1","HBD2","LL37", "REG3A", "PLA2G2A", "PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")) -->
+PLA2G2A_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_PLA2G2A")
 
-<!-- belinostat$LINC_histone_conc <- factor(belinostat$LINC_histone_conc, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM")) -->
+REG3A_selected_U133A <-find_expression_selected_genes( U133A_and_selected_compounds,"Max_REG3A")
 
-<!-- ggplot(belinostat, mapping = aes(x = Gene, y = Expression_ratio, fill = LINC_histone_conc)) + -->
-<!--     geom_bar(stat = "identity",position = "dodge") + -->
-<!--   theme_classic() + -->
-<!--   xlab("Gene") + -->
-<!--   ylab("Expression Ratio") + -->
-<!--   labs(fill = "Concentration") + -->
-<!--   ggtitle("Belinostat") +  -->
-<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
-<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5) -->
-<!-- ) -->
+all_selected_compounds_U133A_U133APLUS <- rbind(HBD1_selected_U133A,HBD2_selected_U133A,HBD3_selected_U133A, HBD4_selected_U133A,LL37_selected_U133A, PGLYRP1_selected_U133A, PGLYRP2_selected_U133A,PGLYRP3_selected_U133A,PGLYRP4_selected_U133A,PLA2G2A_selected_U133A,REG3A_selected_U133A ) %>%
+  group_by(Compounds) %>%
+  mutate(Freq = table(Compounds)) %>%
+  arrange(desc(Freq)) %>%
+  distinct()
 
-<!-- ggplot(belinostat[belinostat$Gene == "REG3A",], mapping = aes(x = LINC_histone_cell, y = Expression_ratio)) + -->
-<!--   geom_boxplot(outlier.colour = "white") + -->
-<!--   geom_point(aes(colour = LINC_histone_conc)) + -->
-<!--   theme_classic() +  -->
-<!--   labs(fill = "Concentration") + -->
-<!--   ylab("REG3A Expression Ratio") + -->
-<!--   xlab("Cell type") + -->
-<!--   coord_flip()  + -->
-<!--   ggtitle("Belinostat") +  -->
-<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) -->
+all_selected_compounds_U133A_U133APLUS <- all_selected_compounds_U133A_U133APLUS[!all_selected_compounds_U133A_U133APLUS$Status == "Toxic",]
 
-<!-- ``` -->
+table_with_all_conditions_selected_U133A <- U133A_modified[U133A_modified$Compounds %in% unique(all_selected_compounds_U133A_U133APLUS$Compounds),]
 
-<!-- Pracinostat: -->
-<!-- ```{r} -->
-<!-- pracinostat <-LINC_histone_compounds_gathered[LINC_histone_compounds_gathered$Compounds == "pracinostat",] -->
+table_with_all_conditions_selected_U133APLUS <- U133APLUS_modified[U133APLUS_modified$Compounds %in% unique(all_selected_compounds_U133A_U133APLUS$Compounds),]
 
-<!-- pracinostat$Gene <- factor(pracinostat$Gene, levels = c("BM2", "HBD1","HBD2","LL37", "REG3A", "PLA2G2A", "PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")) -->
+```
 
-<!-- pracinostat$LINC_histone_conc <- factor(pracinostat$LINC_histone_conc, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM")) -->
+Repeat something similar for LINC. This time, look at the max, median values in HT29 cells, since they're available. Retain approved and clinical compounds within the first 30 rows (greatest AMP values).
 
-<!-- ggplot(pracinostat, mapping = aes(x = Gene, y = Expression_ratio, fill = LINC_histone_conc)) + -->
-<!--     geom_bar(stat = "identity",position = "dodge") + -->
-<!--   theme_classic() + -->
-<!--   xlab("Gene") + -->
-<!--   ylab("Expression Ratio") + -->
-<!--    labs(fill = "Concentration") + -->
-<!--   ggtitle("Pracinostat") +  -->
-<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
-<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5) -->
-<!-- ) -->
+```{r}
+#LINC only, remember that here it's best to look at HT-29 cells only! So i'm gonna use max_median_HT29_only table instead of compounds from drug_analysis_with_median_max
 
-<!-- ggplot(belinostat[belinostat$Gene == "PLA2G2A",], mapping = aes(x = LINC_histone_cell, y = Expression_ratio)) + -->
-<!--   geom_boxplot(outlier.colour = "white") + -->
-<!--   geom_point(aes(colour = LINC_histone_conc)) + -->
-<!--   theme_classic() + -->
-<!--   labs(fill = "Concentration") + -->
-<!--   ylab("PLA2G2A Expression Ratio") + -->
-<!--   xlab("Cell type") + -->
-<!--   coord_flip()  + -->
-<!--   ggtitle("Pracinostat") +  -->
-<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) -->
+LINC_containing_platforms <- c("LINC", "LINC & U133A","LINC & U133A & U133APLUS", "LINC & U133APLUS", "LINC & U133A & U219")
 
-<!-- ``` -->
+LINC_and_selected_compounds <- drug_analysis_with_median_max %>%
+  filter(drug_analysis_with_median_max$Platform %in% LINC_containing_platforms)  ## drug_analysis_with_median_max contains results LINC results from HT29 already 
 
+find_expression_selected_genes_for_LINC <- function(data, gene){
+  
+  ordered_data <- data %>%
+  arrange(desc(!!rlang::parse_expr(gene))) %>%
+  dplyr::filter(!!rlang::parse_expr(gene) >= 2)  
+  
+  ordered_data <- ordered_data[1:20,]
+  ordered_data <- ordered_data[!is.na(ordered_data$Compounds),]
+  
+  return(ordered_data)
+} 
 
-<!-- Vorinostat -->
-<!-- ```{r} -->
+HBD1_selected_LINC <-find_expression_selected_genes_for_LINC( LINC_and_selected_compounds,"Max_HBD1")
 
-<!-- vorinostat <-LINC_histone_compounds_gathered[LINC_histone_compounds_gathered$Compounds == "vorinostat",] -->
+HBD2_selected_LINC <-find_expression_selected_genes_for_LINC( LINC_and_selected_compounds,"Max_HBD2")
 
-<!-- vorinostat$Gene <- factor(vorinostat$Gene, levels = c("BM2", "HBD1","HBD2","LL37", "REG3A", "PLA2G2A", "PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")) -->
+LL37_selected_LINC <-find_expression_selected_genes_for_LINC( LINC_and_selected_compounds,"Max_LL37")
 
-<!-- vorinostat$LINC_histone_conc <- factor(vorinostat$LINC_histone_conc, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM")) -->
+PGLYRP1_selected_LINC <-find_expression_selected_genes_for_LINC( LINC_and_selected_compounds,"Max_PGLYRP1")
 
-<!-- ggplot(vorinostat, mapping = aes(x = Gene, y = Expression_ratio, fill = LINC_histone_conc)) + -->
-<!--     geom_bar(stat = "identity",position = "dodge") + -->
-<!--   theme_classic() + -->
-<!--   xlab("Gene") + -->
-<!--   ylab("Expression Ratio") + -->
-<!--    labs(fill = "Concentration") + -->
-<!--   ggtitle("Vorinostat") +  -->
-<!--   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) + -->
-<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5) -->
-<!-- ) -->
+PGLYRP4_selected_LINC <-find_expression_selected_genes_for_LINC( LINC_and_selected_compounds,"Max_PGLYRP4")
 
-<!-- ggplot(vorinostat[vorinostat$Gene == "PLA2G2A",], mapping = aes(x = LINC_histone_cell, y = Expression_ratio)) + -->
-<!-- geom_boxplot(outlier.colour = "white") + -->
-<!--   geom_point(aes(colour = LINC_histone_conc)) + -->
-<!--   theme_classic() + -->
-<!--   labs(fill = "Concentration") + -->
-<!--   ylab("PLA2G2A Expression Ratio") + -->
-<!--   xlab("Cell type") + -->
-<!--   coord_flip()  + -->
-<!--   ggtitle("Vorinostat") +  -->
-<!--   theme(plot.title = element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) -->
+PLA2G2A_selected_LINC <-find_expression_selected_genes_for_LINC( LINC_and_selected_compounds,"Max_PLA2G2A")
 
+REG3A_selected_LINC <-find_expression_selected_genes_for_LINC( LINC_and_selected_compounds,"Max_REG3A")
 
-<!-- celastrol <-LINC_histone_compounds_gathered[LINC_histone_compounds_gathered$Compounds == "celastrol",] -->
-<!-- ``` -->
+all_selected_compounds_LINC <- rbind(HBD1_selected_LINC,HBD2_selected_LINC,LL37_selected_LINC, PGLYRP1_selected_LINC,PGLYRP4_selected_LINC,PLA2G2A_selected_LINC,REG3A_selected_LINC) %>%
+  group_by(Compounds) %>%
+  mutate(Freq = table(Compounds)) %>%
+  arrange(desc(Freq)) %>%
+  distinct()
 
+#the issue is now that I don't know which one is approved and which one isn't. 
 
+## remove None,
+all_selected_compounds_LINC <- all_selected_compounds_LINC[!all_selected_compounds_LINC$Status == "None",]
 
-<!-- ```{r} -->
-<!-- # U133_app_dev <-U133A_modified[U133A_modified$Original %in% xls_compounds$Original,] -->
-<!-- # nrow(U133_app_dev) -->
-<!-- #  -->
-<!-- # View(U133A_modified[U133A_modified$Compounds %in% U133_app_dev$Compounds,]) -->
-<!-- #  -->
-<!-- # U133APLUS_app_dev <-U133APLUS_modified[U133APLUS_modified$Original %in% xls_compounds$Original,] -->
-<!-- # nrow(U133APLUS_app_dev) -->
-<!-- #  -->
-<!-- # View(U133APLUS_modified[U133APLUS_modified$Compounds %in% U133APLUS_app_dev$Compounds,]) -->
-<!-- #  -->
-<!-- # U219_app_dev <-U219_modified[U219_modified$Original %in% xls_compounds$Original,] -->
-<!-- # nrow(U219_app_dev)  -->
-<!-- ``` -->
+table_with_all_conditions_selected_LINC <- LINC_compounds_HT29[LINC_compounds_HT29$Compounds %in% unique(all_selected_compounds_LINC$Compounds),]
 
+#table with initial DE values from experiments for all compounds from U133A, U133APLUS and LINC (not max and median values)
 
+#repeat bc when re-run I've got an issue
+table_with_all_conditions_selected_U133A <- U133A_modified[U133A_modified$Compounds %in% unique(all_selected_compounds_U133A_U133APLUS$Compounds),]
+
+table_with_all_conditions_selected_U133APLUS <- U133APLUS_modified[U133APLUS_modified$Compounds %in% unique(all_selected_compounds_U133A_U133APLUS$Compounds),]
+
+table_with_all_conditions_selected_U133A <- 
+  table_with_all_conditions_selected_U133A %>%
+  add_column(HBD3 = NA,
+             HBD4 = NA,
+             PGLYRP2 = NA,
+             PGLYRP3 = NA,
+             LINC_cell = NA,
+             LINC_conc = NA,
+             LINC_time = NA)
+
+table_with_all_conditions_selected_LINC <- table_with_all_conditions_selected_LINC %>%
+   add_column(HBD3 = NA,
+             HBD4 = NA,
+             PGLYRP2 = NA,
+             PGLYRP3 = NA) 
+
+table_with_all_conditions_selected_U133APLUS <- table_with_all_conditions_selected_U133APLUS %>%
+  add_column(LINC_cell = NA,
+             LINC_conc = NA,
+             LINC_time = NA)
+
+table_with_all_conditions_selected_LINC_U133A_andPLUS <- rbind(table_with_all_conditions_selected_U133A,table_with_all_conditions_selected_U133APLUS,table_with_all_conditions_selected_LINC)
+
+write_xlsx(table_with_all_conditions_selected_LINC_U133A_andPLUS,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/table_with_all_conditions_selected_LINC_U133A_andPLUS.xlsx")
+#22/03/22
+
+#combine tables with max and median values too
+
+selected_median_max <- rbind(all_selected_compounds_U133A, all_selected_compounds_LINC) # length(unique(selected_median_max$Compounds)) = 78
+# selected_median_max <-selected_median_max[!duplicated(selected_median_max$Compounds),]
+
+write_xlsx(selected_median_max, "/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Work_in_progress_tables/selected_median_max.xlsx")
+
+```
