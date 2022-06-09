@@ -1,471 +1,791 @@
+---
+title: "Genestigator-based analysis"
+author: "Anna Kurowska"
+date: "21/05/2022"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+#1.Loading libraries
+```{r, echo= = FALSE}
+library(rlang)
 library(readxl)
+library(writexl)
 library(dplyr)
 library(stringr)
 library(tidyverse)
 library(ggplot2)
-library(hrbrthemes) # for heatmaps
 library(magrittr)
 library(pheatmap)
-library(MixGHD) # hierarchical clustering which i will finally not use
-library(viridis)
 library(ggpubr)
+library(hash) # good question
+```
 
+#2.Loading and processing datasets from 4 platforms
 
-### THe pourpose is to first filter through each of the 4 platforms to see which AMP > 2 and PRO < 10. Once I have that, I represent the ratios for only one study of each drug (sometimes they are tested on multiple cell lines/ different concentrations)
+In the following section, download the original datasets from U133A, U133APLUS, U219, LINCS and prepare them for the analaysis.
 
-############# Automating the code
-DE_Genevestigator <- function(data, AMP_data, PRO_data, AMP = 2, PRO = 10){
-  
-  compounds_to_be_stored <- c()
-  
-  for (i in 1:nrow(data)) {
-    if ((max(data[i,AMP_data]) >= AMP) & (max(data[i,PRO_data]) < PRO)) {
-      
-      compounds_to_be_stored[i] <- data[i,1]
-      
-    }
-  }
-  compounds_to_be_stored <- compounds_to_be_stored[!is.na(compounds_to_be_stored)]
-  compounds_to_be_stored <- compounds_to_be_stored[!duplicated(compounds_to_be_stored)]
-  
-  return(data[data$Perturbations %in% compounds_to_be_stored,])
+Platform U133A:
+```{r}
+#load the dataset
+U133A <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_AFFY_U133A.xlsx")
+
+#remove unnecessary columns
+U133A <-U133A[,-c(1,3,4,5)]
+#change the column names for easier handling
+colnames(U133A) <- c("Perturbations", "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1",  
+                       "FC:HBD2","p-value:HBD2",
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
+
+#remove unnecessary rows
+U133A <- U133A[4:nrow(U133A),]
+#numbers values are in the character format, convert character values into numeric values
+U133A_modified <-data.frame(lapply(U133A,as.numeric))
+#since conversion into numbers will remove the character Perturbations columns that holds the name of the experiments, add it manually to a new table
+U133A_modified$Perturbations <- U133A$Perturbations
+#check  dimensions
+dim(U133A_modified)
+
+#from the experiments column use REGEX to only retrieve the names of the molecule used in the experiment. Both full names of the experiments and molecule names will be kept
+Pert_names_before_U133 <-U133A_modified$Perturbations
+
+Pert_names_after_U133<-c()
+for (i in 1:length(Pert_names_before_U133)) {
+  Pert_names_after_U133[i] <- str_extract(Pert_names_before_U133[i], "([^\\s]+)") 
 }
+#select columns that contain FC (fold change) values
+U133A_modified <-U133A_modified[ , grepl( "FC." , names(U133A_modified) ) ]
+#bind experiments and molecule columns
+U133A_modified <-cbind(as.data.frame(Pert_names_after_U133),as.data.frame(Pert_names_before_U133), U133A_modified)
+#change the final naming of the columns
+colnames(U133A_modified) <- c("Compounds", "Original","BM2", "HBD1","HBD2", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
 
+```
 
-###U133A_2 dataset
+Platform U133APLUS
+```{r}
+#load the dataset
+U133A_PLUS <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_AFFY_U133PLUS_2.xlsx")
+#remove unnecessary columns
+U133A_PLUS <-U133A_PLUS[,-c(1,3,4,5)]
+#change the column names for easier handling
+colnames(U133A_PLUS) <- c("Perturbations", 
+                       "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1",  
+                       "FC:HBD2","p-value:HBD2",  
+                       "FC:HBD3","p-value:HBD3",
+                       "FC:HBD4","p-value:HBD4",
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP2","p-value:PGLYRP2",
+                       "FC:PGLYRP3","p-value:PGLYRP3",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
+#remove unnecessary rows
+U133A_PLUS <- U133A_PLUS[4:nrow(U133A_PLUS),]
+#numbers values are in the character format, convert character values into numeric values
+U133APLUS_modified <-data.frame(lapply(U133A_PLUS,as.numeric))
+#since conversion into numbers will remove the character Perturbations columns that holds the name of the experiments, add it manually to a new table
+U133APLUS_modified$Perturbations <- U133A_PLUS$Perturbations
+#check  dimensions
+dim(U133APLUS_modified)
 
-U133A_2 <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data/Toxicology-HS_AFFY_U133A-2.xlsx")
+#from the experiments column use REGEX to only retrieve the names of the molecule used in the experiment. Both full names of the experiments and molecule names will be kept
+Pert_names_before_U133PLUS <-U133APLUS_modified$Perturbations 
 
-#modifying the table for analysis 
-U133A_2 <-U133A_2[,-c(2:5)]
-colnames(U133A_2) <- c("Perturbations", "log2:BM2", "FC:BM2","p-value:BM2",
-                       "log2:DEFB1", "FC:DEFB1","p-value:DEFB1",
-                       "log2:DEFB4A", "FC:DEFB4A","p-value:DEFB4A",
-                       "log2:CAMP", "FC:CAMP","p-value:CAMP",
-                       "log2:REG3A", "FC:REG3A","p-value:REG3A",
-                       "log2:PLA2G2A", "FC:PLA2G2A","p-value:PLA2G2A",
-                       "log2:IL1B", "FC:IL1B","p-value:IL1B",
-                       "log2:CXCL8", "FC:CXCL8","p-value:CXCL8",
-                       "log2:TNF", "FC:TNF","p-value:TNF" )
-            #not all genes were found on this platform!
-U133A_2 <- U133A_2[5:nrow(U133A_2),]
-
-# turn all character columns into numeric 
-class(U133A_2)
-U133A_2_modified <-data.frame(lapply(U133A_2,as.numeric))
-U133A_2_modified$Perturbations <- U133A_2$Perturbations
-str(U133A_2_modified)
-
-##identify compounds that meet your conditions AMP >2, PRO <20
-
-# first define genes in AMP and PRO for which you'll run the loop
-AMP_U133A_2 <- c("FC.BM2","FC.DEFB1","FC.DEFB4A", "FC.CAMP","FC.REG3A","FC.PLA2G2A")
-PRO_U133A_2 <- c("FC.IL1B","FC.CXCL8","FC.TNF")
-
-results_U133A <- DE_Genevestigator(U133A_2_modified,AMP_data = AMP_U133A_2,PRO_data = PRO_U133A_2)
-
-finding_selected_compounds <-function(results_data){
-  selected_words <- c()
-  for (i in 1:length(results_data$Perturbations)){
-    selected_words[i] <- str_extract(results_data$Perturbations[i], "([^\\s]+)") }
-    return(unique(selected_words))
-}
-
-length(finding_selected_compounds(results_U133A))
-
-selected_words_U133 <- c()
-for (i in 1:length(results_U133A$Perturbations)){
-  selected_words_U133[i] <- str_extract(results_U133A$Perturbations[i], "([^\\s]+)") 
-}
-selected_words_U133 <- selected_words_U133[!duplicated(selected_words_U133)]
-length(selected_words_U133)
-
-###U133PLUS_2-0 dataset
-
-U133PLUS_2_0 <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data/Toxicology-HS_AFFY_U133PLUS_2-0.xlsx")
-
-#modifying the table for analysis 
-U133PLUS_2_0 <-U133PLUS_2_0[,-c(1,3,4,5)]
-colnames(U133PLUS_2_0) <- c("Perturbations", "log2:BM2", "FC:BM2","p-value:BM2",
-                       "log2:DEFB1", "FC:DEFB1","p-value:DEFB1",
-                       "log2:DEFB4A", "FC:DEFB4A","p-value:DEFB4A",
-                       "log2:DEFB103B", "FC:DEFB103B","p-value:DEFB103B",
-                       "log2:DEFB104A", "FC:DEFB104A","p-value:DEFB104A",
-                       "log2:CAMP", "FC:CAMP","p-value:CAMP",
-                       "log2:REG3A", "FC:REG3A","p-value:REG3A",
-                       "log2:PLA2G2A", "FC:PLA2G2A","p-value:PLA2G2A",
-                       "log2:IL1B", "FC:IL1B","p-value:IL1B",
-                       "log2:CXCL8", "FC:CXCL8","p-value:CXCL8",
-                       "log2:TNF", "FC:TNF","p-value:TNF" )
-#not all genes were found on this platform!
-U133PLUS_2_0 <- U133PLUS_2_0[5:nrow(U133PLUS_2_0),]
-class(U133PLUS_2_0)
-str(U133PLUS_2_0)
-U133PLUS_2_0_modified <-data.frame(lapply(U133PLUS_2_0,as.numeric))
-U133PLUS_2_0_modified$Perturbations <- U133PLUS_2_0$Perturbations
-str(U133A_2_modified)
-U133PLUS_2_0_modified
-
-#compounds that match the conditions
-AMP_U133PLUS_2_0 <- c("FC.BM2","FC.DEFB1","FC.DEFB4A","FC.DEFB103B","FC.DEFB104A", "FC.CAMP","FC.REG3A","FC.PLA2G2A")
-PRO_U133PLUS_2_0 <- c("FC.IL1B","FC.CXCL8","FC.TNF")
-
-results_U133PLUS <- DE_Genevestigator(U133PLUS_2_0_modified,AMP_data = AMP_U133PLUS_2_0,PRO_data = PRO_U133PLUS_2_0)
-
-#what compounds and how many?
-selected_words_PLUS <- c()
-for (i in 1:length(results_U133PLUS$Perturbations)){
-  selected_words_PLUS[i] <- str_extract(results_U133PLUS$Perturbations[i], "([^\\s]+)") 
-}
-selected_words_PLUS <- selected_words_PLUS[!duplicated(selected_words_PLUS)]
-length(selected_words_PLUS)
-
-
-##U219-4
-
-U219_4 <-read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data/Toxicology-HS_AFFY_U219-4.xlsx")
-
-#modifying the table for analysis 
-U219_4 <-U219_4[,-c(1,3,4,5)]
-colnames(U219_4) <- c("Perturbations", "log2:BM2", "FC:BM2","p-value:BM2",
-                            "log2:DEFB1", "FC:DEFB1","p-value:DEFB1",
-                            "log2:CAMP", "FC:CAMP","p-value:CAMP",
-                            "log2:REG3A", "FC:REG3A","p-value:REG3A",
-                            "log2:PLA2G2A", "FC:PLA2G2A","p-value:PLA2G2A",
-                            "log2:IL1B", "FC:IL1B","p-value:IL1B",
-                            "log2:CXCL8", "FC:CXCL8","p-value:CXCL8",
-                            "log2:TNF", "FC:TNF","p-value:TNF" )
-#not all genes were found on this platform!
-U219_4 <- U219_4[5:nrow(U219_4),]
-class(U219_4)
-str(U219_4)
-U219_4_modified <-data.frame(lapply(U219_4,as.numeric))
-U219_4_modified$Perturbations <- U219_4$Perturbations
-str(U219_4_modified)
-U219_4_modified
-
-AMP_U219_4 <- c("FC.BM2","FC.DEFB1","FC.CAMP","FC.REG3A","FC.PLA2G2A")
-PRO_U219_4 <- c("FC.IL1B","FC.CXCL8","FC.TNF")
-
-View(DE_Genevestigator(U219_4_modified,AMP_data = AMP_U219_4,PRO_data = PRO_U219_4)) # nothing
-
-View(DE_Genevestigator(U219_4_modified,AMP_data = AMP_U219_4,PRO_data = PRO_U219_4,AMP = 0, PRO = 0)) # but works
-
-#nothing!
-
-
-###LINC-100
-
-LINC_L1000 <-read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data/Toxicology-HS_LINC_L1000-3.xlsx")
-
-#modifying the table for analysis 
-LINC_L1000 <-LINC_L1000[,-c(1,3,4,5)]
-colnames(LINC_L1000) <- c("Perturbations", 
-                          "log2:BM2", "FC:BM2","p-value:BM2",
-                      "log2:DEFB1", "FC:DEFB1","p-value:DEFB1",
-                      "log2:DEFB4A", "FC:DEFB4A","p-value:DEFB4A",
-                      "log2:CAMP", "FC:CAMP","p-value:CAMP",
-                      "log2:REG3A", "FC:REG3A","p-value:REG3A",
-                      "log2:PLA2G2A", "FC:PLA2G2A","p-value:PLA2G2A",
-                      "log2:IL1B", "FC:IL1B","p-value:IL1B",
-                      "log2:CXCL8", "FC:CXCL8","p-value:CXCL8",
-                      "log2:TNF", "FC:TNF","p-value:TNF" )
-#not all genes were found on this platform!
-LINC_L1000 <- LINC_L1000[5:nrow(LINC_L1000),]
-class(LINC_L1000)
-str(LINC_L1000)
-LINC_L1000_modified <-data.frame(lapply(LINC_L1000,as.numeric))
-LINC_L1000_modified$Perturbations <- LINC_L1000$Perturbations
-str(LINC_L1000_modified)
-LINC_L1000_modified
-
-AMP_LINC_L1000 <- c("FC.BM2","FC.DEFB1","FC.DEFB4A","FC.CAMP","FC.REG3A","FC.PLA2G2A")
-PRO_LINC_L1000 <- c("FC.IL1B","FC.CXCL8","FC.TNF")
-
-results_LINC <-DE_Genevestigator(LINC_L1000_modified,AMP_data = AMP_LINC_L1000,PRO_data = PRO_LINC_L1000)
-
-
-### maybe let's leave the bit with getting the names for the next step of the analysis, now it'd be good to get the ratios bc at is it the case in LINC_1000 there are way too many compounds!
-
-selected_words <- c()
-##ensuring I get the compound only once
-for (i in 1:length(results_LINC$Perturbations)){
-  selected_words[i] <- str_extract(results_LINC$Perturbations[i], "([^\\s]+)") 
-}
-selected_words <- selected_words[!duplicated(selected_words)]
-length(selected_words) # 270 compounds 
-
-
-#how to retrieve names and build something out of it?
-name_for_storage <- c(paste0("experiment", deparse(substitute(data))))
-name_for_storage <-c()
-
-############ Try to represent data for all platforms together, as a heat map. remember one study per compound #######
-
-## 
-
-##### platforms:#####
-results_LINC #nrow6809 ncol:28
-results_U133A #nrow28 ncol:28
-results_U133PLUS #nrow38 ncol:34
-
-# for_index <- results_U133PLUS
-# for_index$Index <- c(1:nrow(for_index))
-# ##do it together for results_U133A (created below) & results_U133PLUS##
-# #created a table in 
-
-Pert_names_before_U133PLUS <-results_U133PLUS$Perturbations #keep pertubrations column, keep names only!
-
-Pert_names_after_U133PLUS <-c()
+Pert_names_after_U133PLUS<-c()
 for (i in 1:length(Pert_names_before_U133PLUS)) {
   Pert_names_after_U133PLUS[i] <- str_extract(Pert_names_before_U133PLUS[i], "([^\\s]+)") 
 }
+#select columns that contain FC values
+U133APLUS_modified <-U133APLUS_modified[, grepl("FC.",names(U133APLUS_modified)) ]
 
-U133PLUS_tobeJoined <-results_U133PLUS[ , grepl( "FC." , names(results_U133PLUS) ) ]
+#bind experiments and molecule columns
+U133APLUS_modified <-cbind(as.data.frame(Pert_names_after_U133PLUS),as.data.frame(Pert_names_before_U133PLUS), U133APLUS_modified)
 
-U133PLUS_tobeJoined$Perturbations <- Pert_names_after_U133PLUS
+#change the final naming of the columns
+colnames(U133APLUS_modified) <- c("Compounds", "Original","BM2", "HBD1","HBD2","HBD3","HBD4", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
 
-#remove repetitions
-U133PLUS_tobeJoined_final <- U133PLUS_tobeJoined[-c(2,3,5,6,7,9,10,15,16,17,22,24,30,31,35),]
+```
 
-colnames(U133PLUS_tobeJoined_final) <- c("BM2", "DEFB1","DEFB4A","DEFB103B","DEFB104A", "CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF", "Perturbations")
+Platform U219
+```{r}
+#load the dataset
+U219 <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_AFFY_U219.xlsx")
+#remove unnecessary columns
+U219 <-U219[,-c(1,3,4,5)]
+#change the column names for easier handling
+colnames(U219) <- c("Perturbations", 
+                       "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1",  
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP2","p-value:PGLYRP2",
+                       "FC:PGLYRP3","p-value:PGLYRP3",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
 
-# done separately for results_U133A
+#remove unnecessary rows
+U219 <- U219[4:nrow(U219),]
+#numbers values are in the character format, convert character values into numeric values
+U219_modified <-data.frame(lapply(U219,as.numeric))
 
-results_U133A$Index <- c(1:nrow(results_U133A))
-#remove duplicated studies, when more cells keep cell MCF7, so remove row: 14,17,28,26
-results_U133A_for_analysis <- results_U133A[-c(14,17,26,28),]
-#remove columns you won't use for the analysis
-results_U133A_for_analysis <- results_U133A_for_analysis
-Perturbations_to_keep <-results_U133A_for_analysis$Perturbations #keep pertubrations column, keep names only!
-for (i in 1:length(Perturbations_to_keep)) {
-  Perturbations_to_keep[i] <- str_extract(Perturbations_to_keep[i], "([^\\s]+)") 
+#since conversion into numbers will remove the character Perturbations columns that holds the name of the experiments, add it manually to a new table
+U219_modified$Perturbations <- U219$Perturbations
+#check  dimensions
+dim(U219_modified)
+
+#from the experiments column use REGEX to only retrieve the names of the molecule used in the experiment. Both full names of the experiments and molecule names will be kept
+Pert_names_before_U219 <-U219_modified$Perturbations 
+
+Pert_names_after_U219<-c()
+for (i in 1:length(Pert_names_before_U219)) {
+  Pert_names_after_U219[i] <- str_extract(Pert_names_before_U219[i], "([^\\s]+)") 
 }
-# perturbation column is lost here!
-results_U133A_for_analysis <-results_U133A_for_analysis[ , grepl( "FC." , names(results_U133A_for_analysis ) ) ]
 
-#change names of columns
-colnames(results_U133A_for_analysis) <- c("BM2", "DEFB1","DEFB4A", "CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF")
+#select columns that contain FC values
+U219_modified <-U219_modified[, grepl("FC.",names(U219_modified)) ]
 
-results_U133A_for_analysis$Perturbations <-Perturbations_to_keep
+#bind experiments and molecule columns
+U219_modified <-cbind(as.data.frame(Pert_names_after_U219),as.data.frame(Pert_names_before_U219), U219_modified)
 
-#combine the two tables! # they have different dimensions, results_U133A_for_analysis is missing two columns 
+#change the final naming of the columns
+colnames(U219_modified) <- c("Compounds", "Original","BM2", "HBD1", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP2","PGLYRP3","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
+```
 
-U133PLUS_tobeJoined_final
-results_U133A_for_analysis
-joined_tables <-full_join(U133PLUS_tobeJoined_final, results_U133A_for_analysis) 
+Platform LINCS
+```{r}
+#load the dataset
+LINC <- read_excel("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/Downloaded_tables/HS_LINC_L1000.xlsx")
 
-#hierarchical analysls- the format of the table is correct, just remove the perturbations
+#remove unnecessary columns
+LINC <-LINC[,-c(1,3,4,5)]
+#change the column names for easier handling
+colnames(LINC) <- c("Perturbations", 
+                       "FC:BM2","p-value:BM2",
+                       "FC:HBD1","p-value:HBD1", 
+                       "FC:HBD2","p-value:HBD2", 
+                       "FC:LL37","p-value:LL37",
+                       "FC:REG3A","p-value:REG3A",
+                       "FC:PLA2G2A","p-value:PLA2G2A",
+                       "FC:PGLYRP1","p-value:PGLYRP1",
+                       "FC:PGLYRP4","p-value:PGLYRP4",
+                       "FC:IL1B","p-value:IL1B",
+                       "FC:IL8","p-value:IL8",
+                       "FC:CCL20","p-value:CCL20",
+                       "FC:TNF","p-value:TNF" )
+#remove unnecessary rows
+LINC <- LINC[4:nrow(LINC),]
+#numbers values are in the character format, convert character values into numeric values
+LINC_modified <-data.frame(lapply(LINC,as.numeric))
 
-hierarchical_analysis <-joined_tables[,2:(ncol(joined_tables)-1)]
-rownames(hierarchical_analysis) <- make.names(joined_tables[,12], unique = TRUE)
+#since conversion into numbers will remove the character Perturbations columns that holds the name of the experiments, add it manually to a new table
+LINC_modified$Perturbations <- LINC$Perturbations
 
-unsc_ward <- pheatmap(hierarchical_analysis, clustering_method = "complete", show_colnames = TRUE, show_rownames = TRUE, annotation_legend = FALSE, cluster_cols = FALSE,scale = "row",)
+#check  dimensions
+dim(LINC_modified)
 
+#from the experiments column use REGEX to only retrieve the names of the molecule used in the experiment. Both full names of the experiments and molecule names will be kept
+Pert_names_before_LINC <-LINC_modified$Perturbations 
+
+Pert_names_after_LINC<-c()
+for (i in 1:length(Pert_names_before_LINC)) {
+  Pert_names_after_LINC[i] <- str_extract(Pert_names_before_LINC[i], "([^\\s]+)") 
+}
+
+#select columns that contain FC values
+LINC_modified <-LINC_modified[, grepl("FC.",names(LINC_modified)) ]
+
+#bind experiments and molecule columns
+LINC_modified <-cbind(as.data.frame(Pert_names_after_LINC),as.data.frame(Pert_names_before_LINC), LINC_modified)
+
+#change the final naming of the columns
+colnames(LINC_modified) <- c("Compounds", "Original","BM2", "HBD1","HBD2", "LL37", "REG3A", "PLA2G2A","PGLYRP1","PGLYRP4", "IL1B", "IL8", "CCL20", "TNF")
+
+```
+
+#3. Find the compounds inducing the highest gene expression for each dataset 
+
+Separate dataset for each platform into separate tables for each gene, do the analysis of each gene to identify compounds.
+
+Function that selects molecules that upregulate the expression of at least one AMP in at least one experiment. Positive molecules are selected for further analysis. Save the output into excel tables that are then inspected and annotated manually.
+```{r}
+find_expression <- function(data, gene){
   
-# # ## example from data analysis class:
-# exprs <- read.csv("/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Data analysis/project/data/nanostring.txt", header = TRUE, sep="\t", stringsAsFactors = TRUE)
-# dim(exprs)
-# str(exprs)
-# 
-# exprs.num <- as.matrix(exprs[,-(1:2)]) #removing categorical variables
-# rownames(exprs.num) <-  make.names(exprs[,1], unique = TRUE)
-# exprs.cat <- as.data.frame(exprs[, 2])
-# rownames(exprs.cat) <- make.names(exprs[,1], unique = TRUE)
+  ordered_data <- data %>%
+  dplyr::filter(!!rlang::parse_expr(gene) >= 2) %>% 
+  dplyr::select(c(Compounds, Original, gene, IL1B,IL8, CCL20,TNF)) %>%
+  arrange(desc(!!rlang::parse_expr(gene)))
 
-## this hierarchical thing may not be what I need, instead use heatmap
-joined_tables
+  return(ordered_data)
+} 
+```
 
-joined_tables_for_visualisation <-gather(data =joined_tables,key = "Gene", value = "Expression_Ratio", -Perturbations)
+Platform U133A
+```{r}
+#HBD1
 
-joined_tables_for_visualisation$Gene <- factor(joined_tables_for_visualisation$Gene, levels = c("BM2", "DEFB1","DEFB4A","DEFB103B", "DEFB104A", "CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF"))
+U133A_HBD1 <-find_expression(U133A_modified,"HBD1")
+  #none
 
-ggplot(joined_tables_for_visualisation, aes(x = Gene, y = Perturbations, fill = Expression_Ratio)) +
-  geom_tile() +
-  theme_classic() +
-  scale_fill_viridis()
+#HBD2
 
-##okay now let's work on the LINC data
-  #first I need to select only one experiment from each
-  #for that I need to extract the concentration, time and cell type, I need to insert them as additional columns
+U133A_HBD2 <- find_expression(U133A_modified,"HBD2")
+
+#write.csv(U133A_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_HBD2.csv")
+
+#LL37
+
+U133A_LL37 <-find_expression(U133A_modified,"LL37")
+
+#write.csv(U133A_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_LL37.csv")
+
+#REG3A
+
+U133A_REG3A <- find_expression(U133A_modified,"REG3A")
+  #none
+
+#PLA2G2A
+
+U133A_PLA2G2A <- find_expression(U133A_modified,"PLA2G2A")
+
+#write.csv(U133A_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_PLA2G2A.csv")
+
+#PGLYRP1
+
+U133A_PGLYRP1 <- find_expression(U133A_modified,"PGLYRP1")
+
+#write.csv(U133A_PGLYRP1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_PGLYRP1.csv")
+
+#PGLYRP4
+
+U133A_PGLYRP4 <- find_expression(U133A_modified,"PGLYRP4")
+
+#write.csv(U133A_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133A_PGLYRP4.csv")
+```
+
+Platform U133APLUS
+```{r}
+
+#"HBD1
+
+U133APLUS_HBD1 <- find_expression(U133APLUS_modified,"HBD1")
+
+#write.csv(U133APLUS_HBD1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD1.csv")
+
+#HBD2
+
+U133APLUS_HBD2 <- find_expression(U133APLUS_modified,"HBD2")
+
+#write.csv(U133APLUS_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD2.csv")
+
+#HBD3
+
+U133APLUS_HBD3 <- find_expression(U133APLUS_modified,"HBD3")
+
+#write.csv(U133APLUS_HBD3,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD3.csv")
+
+#HBD4
+
+U133APLUS_HBD4 <- find_expression(U133APLUS_modified,"HBD4")
+
+#write.csv(U133APLUS_HBD4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_HBD4.csv")
+
+#LL37
+
+U133APLUS_LL37 <- find_expression(U133APLUS_modified,"LL37")
+
+#write.csv(U133APLUS_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_LL37.csv")
+
+#REG3A
+
+U133APLUS_REG3A <- find_expression(U133APLUS_modified,"REG3A")
+
+#write.csv(U133APLUS_REG3A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_REG3A.csv")
+
+#PLA2G2A 
+
+U133APLUS_PLA2G2A <- find_expression(U133APLUS_modified,"PLA2G2A")
+
+#write.csv(U133APLUS_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_PLA2G2A.csv")
+
+#PGLYRP1
+
+U133APLUS_PGLYRP1 <-find_expression(U133APLUS_modified,"PGLYRP1")
+  #none
+
+#PGLYRP2
+
+U133APLUS_PGLYRP2 <-find_expression(U133APLUS_modified,"PGLYRP2")
+
+#write.csv(U133APLUS_PGLYRP2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_PGLYRP2.csv")
+
+#PGLYRP3
+
+U133APLUS_PGLYRP3 <-find_expression(U133APLUS_modified,"PGLYRP3")
+  #none
+
+#PGLYRP4
+
+U133APLUS_PGLYRP4 <-  find_expression(U133APLUS_modified,"PGLYRP4")
+
+#write.csv(U133APLUS_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/U133APLUS_PGLYRP4.csv")
+
+```
+
+Platform U219
+```{r}
+
+#HBD1
+find_expression(U219_modified, "HBD1")
+  #none
+
+#LL37
+find_expression(U219_modified, "LL37")
+  #none
+
+#REG3A
+find_expression(U219_modified, "REG3A")
+  #none
+
+#PLA2G2A
+find_expression(U219_modified, "PLA2G2A")
+  #none
+
+#PGLYRP1
+find_expression(U219_modified, "PGLYRP1")
+  #none
+
+#PGLYRP2
+find_expression(U219_modified, "PGLYRP2")
+  #none
+
+#PGLYRP3
+find_expression(U219_modified, "PGLYRP3")
+  #none
+
+#PGLYRP4
+find_expression(U219_modified, "PGLYRP4")
+  #none
+```
+
+LINC_modified
+```{r}
+
+#HBD1
+
+LINC_HBD1 <- find_expression(LINC_modified, "HBD1")
+
+#write.csv(LINC_HBD1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_HBD1.csv")
+
+unique_LINC_HBD1 <- LINC_HBD1[!duplicated(LINC_HBD1$Compounds),]
+
+#write.csv(unique_LINC_HBD1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_HBD1.csv")
+
+#HBD2
+
+LINC_HBD2 <- find_expression(LINC_modified, "HBD2")
+
+#write.csv(LINC_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_HBD2.csv")
+
+unique_LINC_HBD2 <- LINC_HBD2[!duplicated(LINC_HBD2$Compounds),]
+
+#write.csv(unique_LINC_HBD2,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_HBD2.csv")
+
+#LL37
+
+LINC_LL37 <- find_expression(LINC_modified, "LL37")
+
+#write.csv(LINC_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_LL37.csv")
+
+unique_LINC_LL37 <- LINC_LL37[!duplicated(LINC_LL37$Compounds),]
+
+#write.csv(unique_LINC_LL37,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_LL37.csv")
+
+#REG3A
+
+LINC_REG3A <- find_expression(LINC_modified, "REG3A")
+
+#write.csv(LINC_REG3A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_REG3A.csv")
+
+unique_LINC_REG3A <- LINC_REG3A[!duplicated(LINC_REG3A$Compounds),]
+
+#write.csv(unique_LINC_REG3A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_REG3A.csv")
+
+#PLA2G2A
+
+LINC_PLA2G2A <- find_expression(LINC_modified, "PLA2G2A")
+
+#write.csv(LINC_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_PLA2G2A.csv")
+
+unique_LINC_PLA2G2A <- LINC_PLA2G2A[!duplicated(LINC_PLA2G2A$Compounds),]
+
+#write.csv(unique_LINC_PLA2G2A,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_PLA2G2A.csv")
+
+#PGLYRP1
+
+LINC_PGLYRP1 <- find_expression(LINC_modified, "PGLYRP1")
+
+#write.csv(LINC_PGLYRP1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_PGLYRP1.csv")
+
+unique_LINC_PGLYRP1 <- LINC_PGLYRP1[!duplicated(LINC_PGLYRP1$Compounds),]
+
+#write.csv(unique_LINC_PGLYRP1,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_PGLYRP1.csv")
+
+#PGLYRP4
+
+LINC_PGLYRP4 <- find_expression(LINC_modified, "PGLYRP4")
+
+#write.csv(LINC_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/LINC_PGLYRP4.csv")
+
+unique_LINC_PGLYRP4 <- LINC_PGLYRP4[!duplicated(LINC_PGLYRP4$Compounds),]
+
+#write.csv(unique_LINC_PGLYRP4,"/Users/Ania/Desktop/Szkoła/ENS /2nd_year/Stage/Practical/Genevestigator/Data_17_02_22_current/output_tables_for_excel/unique_LINC_PGLYRP4.csv")
 
 
-#extract all cell names in LINC:
+```
 
-# bar <- results_LINC$Perturbations[2]
-# foo <- "(+)-JQ1 (24h; 0.04uM; A375) / DMSO control (24h; A375)"
+#4. Cell types in each platform: general description of the data
 
-LINC_perturbations <-results_LINC$Perturbations
-length(LINC_perturbations) #nrow - 6809
+```{r}
 
+#U133A
+U13AA_cells <- c()
+
+for (i in 1:nrow(U133A_modified)){
+  U13AA_cells[i] <- str_match(U133A_modified[i,2],".*treated (.*) cell sample")[[2]]
+}
+#mode: str_match("cobalt chloride study 1 (100uM) / vehicle (DMSO) treated MCF7 cell sample",".*treated (.*) cell sample")[[2]]
+
+U13AA_cells <-as.data.frame(table(U13AA_cells))
+colnames(U13AA_cells) <- c("Cell", "Freq")
+
+#U133APLUS 
+
+U13AAPLUS_cells<- c() ##This retrieves more, maybe just use that?#################
+
+for (i in 1:nrow(U133APLUS_modified)){
+  U13AAPLUS_cells[i] <- str_match(U133APLUS_modified[i,2],".*treated (.*) sample")[[2]]
+}
+
+ #remove NA
+  U13AAPLUS_cells <- U13AAPLUS_cells[!is.na(U13AAPLUS_cells)]
+   #numer of rows retrieved here
+  length(U13AAPLUS_cells) 
+
+U13AAPLUS_cells <-as.data.frame(table(U13AAPLUS_cells))
+colnames(U13AAPLUS_cells) <- c("Cell", "Freq")
+  
+#U219
+
+U219_cells <- c()
+
+for (i in 1:nrow(U219_modified)){
+  U219_cells[i] <- str_match(U219_modified[i,2],".*\\(.*; (.*)\\) \\/ .*")[[2]]
+}
+
+#model: str_match("trenbolone study 1 (100nM; Ishikawa) / vehicle (DMSO) treated Ishikawa cell sample",".*\\(.*; (.*)\\) \\/ .*")[[2]]
+
+U219_cells <-as.data.frame(table(U219_cells))
+colnames(U219_cells) <- c("Cell", "Freq")
+
+
+# LINCS
+LINC_cell <- as.data.frame(table(LINC_cell))
+colnames(LINC_cell) <- c("Cell", "Freq")
+
+cell_types <-rbind(U13AA_cells,U13AAPLUS_cells,U219_cells, LINC_cell)
+
+cell_types %>%
+  group_by(Cell) %>%
+  summarise(Frequency = sum(Freq)) 
+
+##in total, 24441 experiments
+
+#HT-29
+1611/24441*100  6.591383
+
+```
+
+#5.Analysis of LINC compounds in HT-29 cell type. 
+
+Creating a summary table for HT-29 cells treated with HT-29 cells. The goal is to calculate the frequency of each gene upregulation (FC >= 2) by the molecules from the Genevestigator database. Since only the LINCS platform contained experiments done in colonic cell lines (HT-29) only data from this platform is analysed.
+
+```{r}
+# Set up empty variables
+LINC_perturbations <- LINC_modified$Original
+  
 LINC_time <- c()
 LINC_conc <- c()
 LINC_cell <- c()
 LINC_compound <- c()
 
+#for every molecule acquired from the LINCS platform retrieve the informations regarding the time, cell, and concentration used. Possible to get all of this information as the experiments are annotated the same way.
 for (i in 1:length(LINC_perturbations)){
-  
+
   linc_perturbations_results <- str_match(as.list(LINC_perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*")
   LINC_time[i] <- linc_perturbations_results[2]
   LINC_conc[i] <- linc_perturbations_results[3]
   LINC_cell[i] <- linc_perturbations_results[4]
-  
-  LINC_compound[i] <-str_extract(results_LINC$Perturbations[i], "([^\\s]+)") 
-  
-
-}
-
-#before you add  new columns, extract only FC columns
-results_LINC_1 <-results_LINC[, grepl("FC.", names(results_LINC))]
-colnames(results_LINC_1) <- c("BM2","DEFB1", "DEFB4A", "CAMP", "REG3A", "PLA2G2A", "IL1B", "IL8", "TNF")
-
-#now add time, conc, cell type and compound to the result list:
-results_LINC_1$Time <-LINC_time
-results_LINC_1$Concentration <-LINC_conc
-results_LINC_1$Cell <-LINC_cell
-results_LINC_1$Perturbations <-LINC_compound
-
-unique(LINC_conc) #"0.04uM" "0.12uM" "0.37uM" "1.11uM" "3.33uM" "10uM"  
-unique(LINC_time) # "24h" "3h" 
-unique(LINC_cell) #"A375"     "HA1E"     "HT29"     "A549"     "HEPG2"    "MCF7" [7] "HCC515"   "PC3"      "BT20"     "HS578T"   "SKBR3"    "HME1"    "LNCAP"    "MCF10A"   "MDAMB231"
-
-LINC_unique_only<-results_LINC_1[!duplicated(results_LINC_1$Perturbations),]
-
-
-# hierarchical clustering 
-LINC_hierarchy <-LINC_unique_only[,2:9]
-rownames(LINC_hierarchy) <- make.names(LINC_unique_only[,13], unique = TRUE)
-
-unsc_ward_LINC <- pheatmap(LINC_hierarchy, clustering_method = "ward.D2", show_colnames = TRUE, show_rownames = FALSE, annotation_legend = FALSE, scale = "row", cluster_cols = FALSE)
-
-# ratios for all tables (unique values for the moment)
-
-U133PLUS_tobeJoined_final
-results_U133A_for_analysis
-LINC_unique_only
-
-all_platforms_joined <-full_join(joined_tables,LINC_unique_only[,-c(10:12)])
-
-AMP_genes <- c("DEFB1",	"DEFB4A",	"DEFB103B",	"DEFB104A",	"CAMP",	"REG3A",	"PLA2G2A")
-PRO_genes <- c("IL1B","IL8","TNF")
-all_platforms_joined 
-  
-ratio_values <- c() 
-for (i in 1:nrow(all_platforms_joined)){
-  ratio_values[i] <- (sum(all_platforms_joined[i,AMP_genes],na.rm = TRUE)/length(AMP_genes))/(sum(all_platforms_joined[i,PRO_genes],na.rm = TRUE)/length(PRO_genes))
-}
-
-all_platforms_joined$Ratios <-ratio_values
-
-ggplot(all_platforms_joined, aes(x = Perturbations, y = Ratios, colour = dplyr::case_when(Ratios > 1 ~ ">1", Ratios < 1 ~ "<1"))) +
-  geom_point() + 
-  scale_y_continuous(trans = "log10") +
-  theme_classic() +
-   theme(axis.text.x=element_blank(),
-         axis.ticks.x=element_blank())+
-  scale_colour_discrete("Ratio") +
-  xlab("Compound")+
-  ylab("Ratio (AMP/PRO)")
-## now I can say, filter the table to only get values with ratio > 1
-
-compounds_with_higher_ratios <-all_platforms_joined %>%
-  filter(Ratios > 1) ## 52 compounds!
-
- #hierarchical clustering of this table?
-higher_ratios_hierarchical  <- compounds_with_higher_ratios[,2:(ncol(compounds_with_higher_ratios)-2)]
-
-pheatmap(higher_ratios_hierarchical, clustering_method = "complete", show_colnames = TRUE, show_rownames = FALSE, annotation_legend = FALSE, cluster_cols = FALSE,scale = "row",main = "Compounds with ratio above 1")
-      ## so from all of the compounds, these are the ones that have ratio above 1. 
-
-#alternatively what I can do is to get the highest ratios simply and choose the 10-20 first values
-sorted_ratios_all_compounds <-all_platforms_joined %>%
-  arrange(desc(Ratios))
-
-View(head(sorted_ratios_all_compounds,30))
-
-#################### SEPERATE COMPOUNDS ################
-#okay it seems that ibrutinib has the highest ratio so let's look at it in the original table LINC_1000:
-dim(LINC_L1000)
-
-
-LINC_full_table_time <- c()
-LINC_full_table_conc <- c()
-LINC_full_table_cell <- c()
-LINC_full_table_compound <- c()
-
-for (i in 1:length(LINC_L1000$Perturbations)){
-  
-  linc_perturbations_results <- str_match(as.list(LINC_L1000$Perturbations[i]), ".+\\((.+)\\;\\s?(.+)\\;\\s?(.+)\\).*\\(.*")
-  LINC_full_table_time[i] <- linc_perturbations_results[2]
-  LINC_full_table_conc[i] <- linc_perturbations_results[3]
-  LINC_full_table_cell[i] <- linc_perturbations_results[4]
-  
-  LINC_full_table_compound[i] <-str_extract(LINC_L1000$Perturbations[i], "([^\\s]+)") 
-  
+  LINC_compound[i] <-str_extract(LINC_perturbations[i], "([^\\s]+)") 
   
 }
+#bind all the variables together with the LINCS dataframe 
+LINC_compounds <-cbind(as.data.frame(LINC_cell),as.data.frame(LINC_conc),as.data.frame(LINC_time), as.data.frame(LINC_modified))
 
-LINC_L1000_FC <- LINC_L1000[, grepl("FC.",names(LINC_L1000))]
-LINC_L1000_FC <-data.frame(lapply(LINC_L1000_FC,as.numeric))
-str(LINC_L1000_FC)
+#create HT-29 dataframe only
+LINC_compounds_HT29 <-LINC_compounds %>%
+  filter(LINC_cell == "HT29") 
 
-LINC_L1000_FC$Compound <- LINC_full_table_compound
-LINC_L1000_FC$Time <-LINC_full_table_time
-LINC_L1000_FC$Concentration <- LINC_full_table_conc
-LINC_L1000_FC$Cell <-LINC_full_table_cell
+##Quantify the frequency of each AMP gene upregulation by each molecule
+#Put the data in the narrow format
+LINC_HT29_f_gathered <- gather(LINC_compounds_HT29,key = Gene, value = Expression_ratio, -c(1:5)) 
 
-ibrutinib <- LINC_L1000_FC %>%
-  filter(Compound == "ibrutinib")
+AMP_LINC <- c("HBD1", "HBD2", "LL37", "REG3A", "PLA2G2A", "PGLYRP1", "PGLYRP4")
 
-unique(ibrutinib$Concentration) #"0.04uM" "0.12uM" "0.37uM" "1.11uM" "3.33uM" "10uM" 
-unique(ibrutinib$Cell) #"A375"   "A549"   "HA1E"   "HCC515" "HEPG2"  "HT29"   "MCF7"   "PC3" 
-# all cell types tested for each concentration, let's start off with A375 maybe?
+HT29_freq_each_gene <-LINC_HT29_f_gathered %>%
+  filter(Gene %in% AMP_LINC) %>%
+  group_by(Compounds,Gene) %>%
+  summarise(Gene_Frequency = sum((Expression_ratio >= 2) == TRUE)) %>%
+  pivot_wider(names_from = Gene,values_from = Gene_Frequency)
+```
 
-ibrutinib_gathered <- gather(data = ibrutinib,key = "Gene", value = "Expression_Ratio", -c(Compound, Time, Concentration,Cell))
+Extra: written summary of the AMP genes upregulated by molecules tested on HT-29 cells
+```{r}
+#for each molecule identify whether at least one AMP gene is upergulated
+HT29_logic <- as.data.frame(HT29_freq_each_gene[,AMP_LINC] >= 1)
 
-ibrutinib_gathered$Gene <- factor(ibrutinib_gathered$Gene, levels = c("FC.BM2", "FC.DEFB1","FC.DEFB4A","FC.CAMP", "FC.REG3A", "FC.PLA2G2A", "FC.IL1B", "FC.CXCL8", "FC.TNF"))
+#for each molecule retrieve names of genes it upregultes
+HT29_genes_concatenated <- list()
+for (i in 1:nrow(HT29_logic)) {
+  numberss <- which(HT29_logic[i,] == TRUE)
+  HT29_genes_concatenated[[i]] <- AMP_LINC[numberss]
+}
 
-ibrutinib_gathered$Concentration <- factor(ibrutinib_gathered$Concentration, levels = c("0.04uM", "0.12uM", "0.37uM", "1.11uM", "3.33uM", "10uM"))
+#we have a list of list, name each list containing names of AMP genes with the molecule it corresponds to and convert it into a dataframe
+names(HT29_genes_concatenated) <- HT29_freq_each_gene$Compounds
+nm_HT29 <- names(HT29_genes_concatenated)
+#unlist the list
+result_HT29 <- lapply(unique(nm_HT29), function(n) unname(unlist(HT29_genes_concatenated[nm_HT29 %in% n])))
+#if a gene was upregulated multiple times
+names(result_HT29) <- unique(nm_HT29)
+result_HT29 <-lapply(result_HT29, function(x) toString(unique(x)))
+result_HT29 <-as.data.frame(unlist(result_HT29))
 
-A375 <-ggplot(ibrutinib_gathered[ibrutinib_gathered$Cell == "A375",],mapping = aes(x = Gene, y = Expression_Ratio, fill =Concentration)) +
-  geom_bar(stat = "identity",position = "dodge") +
-  theme_classic() 
+```
 
-A549 <-ggplot(ibrutinib_gathered[ibrutinib_gathered$Cell == "A549",],mapping = aes(x = Gene, y = Expression_Ratio, fill =Concentration)) +
-  geom_bar(stat = "identity",position = "dodge") +
-  theme_classic() 
+#6.Check the frequency of experiment upregulation
 
-ggplot(ibrutinib_gathered[ibrutinib_gathered$Cell == "HA1E",],mapping = aes(x = Gene, y = Expression_Ratio, fill =Concentration)) +
-  geom_bar(stat = "identity",position = "dodge") +
-  theme_classic() 
+It is of interest to understand how many molecules upregualated at least one gene in the experiments. 
 
-ggplot(ibrutinib_gathered[ibrutinib_gathered$Cell == "HCC515",],mapping = aes(x = Gene, y = Expression_Ratio, fill =Concentration)) +
-  geom_bar(stat = "identity",position = "dodge") +
-  theme_classic() 
+Platform U133A
+```{r} 
+#U133A
 
-ggplot(ibrutinib_gathered[ibrutinib_gathered$Cell == "HEPG2",],mapping = aes(x = Gene, y = Expression_Ratio, fill =Concentration)) +
-  geom_bar(stat = "identity",position = "dodge") +
+up_experiments_U133A <- c()
+
+for (i in 1:nrow(U133A_modified)){
+  for (j in 3:ncol(U133A_modified)) {
+  if (U133A_modified[i,j] >= 2 || U133A_modified[i,j] <= -2){
+    up_experiments_U133A[i] <- U133A_modified[i,2]
+    }
+  }
+}
+
+up_experiments_U133A <- up_experiments_U133A[!is.na(up_experiments_U133A)]
+#calculating proportion of experiments that upregulate at least one gene
+length(up_experiments_U133A)/nrow(U133A_modified)* 100
+# 245 out of 1645 (14.88457%)
+
+```
+
+Platform U133APLUS
+```{r}
+#U133APLUS
+up_experiments_U133APLUS <- c()
+
+for (i in 1:nrow(U133APLUS_modified)){
+  for (j in 3:ncol(U133APLUS_modified)) {
+  if (U133APLUS_modified[i,j] >= 2 || U133APLUS_modified[i,j] <= -2){
+    up_experiments_U133APLUS[i] <- U133APLUS_modified[i,2]
+    }
+  }
+}
+
+up_experiments_U133APLUS <- up_experiments_U133APLUS[!is.na(up_experiments_U133APLUS)]
+#calculating proportion of experiments that upregulate at least one gene
+length(up_experiments_U133APLUS)/nrow(U133APLUS_modified)* 100
+# 239 out of 1107 (22.49322%)
+```
+
+Platform U219
+```{r}
+#U219
+up_experiments_U219 <- c()
+
+for (i in 1:nrow(U219_modified)){
+  for (j in 3:ncol(U219_modified)) {
+  if (U219_modified[i,j] >= 2 || U219_modified[i,j] <= -2){
+    up_experiments_U219[i] <- U219_modified[i,2]
+    }
+  }
+}
+
+up_experiments_U219 <- up_experiments_U219[!is.na(up_experiments_U219)]
+#calculating proportion of experiments that upregulate at least one gene
+length(up_experiments_U219)/nrow(U219_modified)* 100
+
+```
+
+Platform LINCS
+```{r}
+#LINCS
+up_experiments_LINCS <- c()
+
+for (i in 1:nrow(LINC_modified)){
+  for (j in 3:ncol(LINC_modified)) {
+  if (LINC_modified[i,j] >= 2 || LINC_modified[i,j] <= -2){
+    up_experiments_LINCS[i] <- LINC_modified[i,2]
+    }
+  }
+}
+
+up_experiments_LINCS <- up_experiments_LINCS[!is.na(up_experiments_LINCS)]
+
+#calculating proportion of experiments that upregulate at least one gene
+length(up_experiments_LINCS)/nrow(LINC_modified)* 100
+# 20288 out of 21413 (94.74618%)
+```
+
+#7. Calculating max and min DE values induced by molecules in each platform 
+
+
+Platform LINCS
+```{r}
+LINC_max <- as.data.frame(apply(LINC_modified[,3:ncol(LINC_modified)],MARGIN = 2, max))
+LINC_max["HBD3",] <- NA #add rows of genes that are not measured in this platform, otherwise you can't join data frames
+LINC_max["HBD4",] <- NA
+LINC_max["PGLYRP2",] <- NA
+LINC_max["PGLYRP3",] <- NA
+LINC_min <- as.data.frame(apply(LINC_modified[,3:ncol(LINC_modified)],MARGIN = 2, min))
+LINC_min["HBD3",] <- NA
+LINC_min["HBD4",] <- NA
+LINC_min["PGLYRP2",] <- NA
+LINC_min["PGLYRP3",] <- NA
+```
+
+Platform U133A
+```{r}
+U133A_max <- as.data.frame(apply(U133A_modified[,3:ncol(U133A_modified)],MARGIN = 2, max))
+U133A_max["HBD3",] <- NA #add rows of genes that are not measured in this platform, otherwise you can't join data frames
+U133A_max["HBD4",] <- NA
+U133A_max["PGLYRP2",] <- NA
+U133A_max["PGLYRP3",] <- NA
+U133A_min <- as.data.frame(apply(U133A_modified[,3:ncol(U133A_modified)],MARGIN = 2, min))
+U133A_min["HBD3",] <- NA
+U133A_min["HBD4",] <- NA
+U133A_min["PGLYRP2",] <- NA
+U133A_min["PGLYRP3",] <- NA
+```
+
+
+Platform U133APLUS
+```{r}
+U133APLUS_max <- as.data.frame(apply(U133APLUS_modified[,3:ncol(U133APLUS_modified)],MARGIN = 2, max))
+U133APLUS_min <- as.data.frame(apply(U133APLUS_modified[,3:ncol(U133APLUS_modified)],MARGIN = 2, min))
+```
+
+Platform U219
+```{r}
+U129_max <- as.data.frame(apply(U219_modified[,3:ncol(U219_modified)],MARGIN = 2, max))
+U129_max["HBD2",] <- NA #add rows of genes that are not measured in this platform, otherwise you can't join data frames
+U129_max["HBD3",] <- NA
+U129_max["HBD4",] <- NA
+U129_min <- as.data.frame(apply(U219_modified[,3:ncol(U219_modified)],MARGIN = 2, min))
+U129_min["HBD2",] <- NA
+U129_min["HBD3",] <- NA
+U129_min["HBD4",] <- NA
+
+```
+
+Join platforms
+```{r}
+platforms_mix_man <- cbind(U133A_max, 
+                          U133A_min,
+                          U133APLUS_max,
+                          U133APLUS_min,
+                          U129_max,
+                          U129_min,
+                          LINC_max,
+                          LINC_min)
+
+colnames(platforms_mix_man) <- c("U133A_max","U133A_min", "U133APLUS_max", "U133APLUS_min", "U219_max","U219_min","LINC_max", "LINC_min" )
+
+platforms_mix_man <- platforms_mix_man[c("BM2", "HBD1", "HBD2", "HBD3", "HBD4", "LL37","REG3A", "PLA2G2A","PGLYRP1", "PGLYRP2", "PGLYRP3", "PGLYRP4", "IL8", "IL1B", "CCL20", "TNF"),]
+
+```
+
+Prepare the table for visualisation
+```{r}
+platforms_mix_man <- rownames_to_column(platforms_mix_man, var = "Gene") #put rownames into a column
+
+platforms_mix_man_gathered <- gather(platforms_mix_man, key = Category, value = Value,-Gene) #create long data
+
+#create new 2 columns: 1 with platform, 2 with max/min group so that they can be differentiated in the graph
+platforms <- c()  
+for (i in 1:nrow(platforms_mix_man_gathered)){
+  platforms[i] <- str_split(platforms_mix_man_gathered[i,"Category"],pattern = "_")[[1]][1]
+
+}
+max_min_group <- c()  
+for (i in 1:nrow(platforms_mix_man_gathered)){
+  max_min_group[i] <- str_split(platforms_mix_man_gathered[i,"Category"],pattern = "_")[[1]][2]
+
+}
+platforms_mix_man_gathered$Platform <- platforms
+platforms_mix_man_gathered$Group <- max_min_group
+
+#plot in ggplot2
+ggplot(platforms_mix_man_gathered, aes(x = Gene, y = Value, colour = Platform)) +
+  geom_point() +
+  coord_flip() +
   theme_classic() +
-  coord_flip()
+  geom_line(aes(group = Platform, colour = Platform))
 
-#line plot, confusing!
-ggplot(ibrutinib_gathered[ibrutinib_gathered$Gene == "FC.DEFB4A",],mapping = aes(x = Cell, y = Expression_Ratio, colour =Concentration)) +
- geom_point() +
-  geom_line(aes(group = Concentration)) +
-theme_classic() +
-  ylab("HBD2:Expression Ratio")
+value1 <- abs(rnorm(26))*2
+data <- data.frame(
+  x=LETTERS[1:26], 
+  value1=value1, 
+  value2=value1+1+rnorm(26, sd=1) 
+)
 
-### this is a niec one! ti shows you there are differences among cell types
-ggplot(ibrutinib_gathered[ibrutinib_gathered$Gene == "FC.CAMP",],mapping = aes(x = Cell, y = Expression_Ratio)) +
-  geom_boxplot() +
-  geom_jitter(aes(colour = Concentration)) +
-  theme_classic() +
-  ylab("REG3A:Expression Ratio")
+data <- data %>% 
+  rowwise() %>% 
+  mutate( mymean = mean(c(value1,value2) )) %>% 
+  arrange(mymean) %>% 
+  mutate(x=factor(x, x))
 
-#Condtions: only 24h,different types of concentrations, different cells
-
-## can also represent in the PCA way!
-
-
-
-
+```
